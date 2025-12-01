@@ -1,0 +1,38 @@
+# Virtual environments
+env/
+venv/
+ENV/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Secrets & API keys
+keys.yaml
+*.env
+.env
+.env.local
+config.yaml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Flask
+instance/
+.pytest_cache/
+.coverage
+htmlcov/

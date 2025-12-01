@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediFriend | Your Medical Health Companion</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+        {% if logo_data %}
+            <img src="{{ logo_data }}" alt="MediFriend Logo" class="logo">
+        {% else %}
+            <img src="{{ url_for('static', filename='images/default_logo.png') }}" alt="MediFriend Logo" class="logo">
+        {% endif %}
+        <h1>Welcome to <span>MediFriend</span></h1>
+        <p>Your personal medical health companion</p>
+    </header>
+
+
+
+    <div class="options">
+      <div class="card" onclick="window.location.href='{{ url_for('prescription_reader') }}'">
+        <i class="fa-solid fa-prescription-bottle-medical"></i>
+        <h2>Prescription Reader</h2>
+        <p>Upload your doctor’s prescription and get a clear, easy-to-understand explanation.</p>
+      </div>
+
+      <div class="card" onclick="window.location.href='{{ url_for('medical_bot') }}'">
+        <i class="fa-solid fa-user-nurse"></i>
+        <h2>Medical Assistant Bot</h2>
+        <p>Chat with an intelligent assistant for personalized health advice and support.</p>
+      </div>
+    </div>
+
+    <footer>
+      <p>
+        © 2025 MediFriend | Designed with 
+        <i class="fa-solid fa-heart heart-icon"></i>
+        for better health
+      </p>
+    </footer>
+  </div>
+</body>
+</html>

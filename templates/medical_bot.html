@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediFriend | Medical Assistant Bot</title>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+
+<body>
+  <div class="container">
+
+    <!-- Back Button -->
+    <button class="back-btn" onclick="window.location.href='{{ url_for('home') }}'">
+      <i class="fa-solid fa-arrow-left"></i> Back
+    </button>
+
+    <header>
+      {% if logo_data %}
+        <img src="{{ logo_data }}" class="logo" alt="logo">
+      {% endif %}
+      <h1><span>Medical Assistant Bot</span></h1>
+      <p>Your personal AI-powered health companion</p>
+    </header>
+
+
+    <!-- Chat Window -->
+    <div id="chatWindow" class="chat-window">
+
+      <!-- First Bot Message -->
+      <div class="bot-msg msg">
+        <div class="avatar icon-avatar">
+            <i class="fa-solid fa-user-nurse"></i>
+        </div>
+        <div class="bubble">
+          👋🏻 Hi there! I'm <b>MediFriend</b>, your AI health companion. <br>
+          How can I help you today?
+        </div>
+      </div>
+
+    </div>
+
+    <!-- User Input -->
+    <div class="chat-input-box">
+        <input id="userInput" class="chat-input" placeholder="Type your message...">
+        <button id="sendBtn" class="send-btn">
+        <i class="fa-solid fa-paper-plane"></i>
+    </button>
+    <button id="newChatBtn" class="new-chat-inline">New Chat</button>
+    </div>
+
+  </div>
+
+  <script>
+    const chatWindow = document.getElementById("chatWindow");
+    const sendBtn = document.getElementById("sendBtn");
+    const userInput = document.getElementById("userInput");
+    const newChatBtn = document.getElementById("newChatBtn");
+
+    // Scroll helper
+    function scrollToBottom() {
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    // Add Message to UI
+    function addMessage(content, sender) {
+      const msgDiv = document.createElement("div");
+      msgDiv.classList.add("msg", sender === "bot" ? "bot-msg" : "user-msg");
+
+      if (sender === "bot") {
+        msgDiv.innerHTML = `
+            <div class="avatar icon-avatar">
+                <i class="fa-solid fa-user-nurse"></i>
+            </div>
+            <div class="bubble bot-bubble">${content}</div>
+            `;
+
+      } else {
+        msgDiv.innerHTML = `<div class="bubble user-bubble">${content}</div>`;
+      }
+
+      chatWindow.appendChild(msgDiv);
+      scrollToBottom();
+    }
+
+    // Loading Animation
+    function showTyping() {
+      const typingDiv = document.createElement("div");
+      typingDiv.classList.add("bot-msg", "typing");
+      typingDiv.innerHTML = `
+        <div class="avatar icon-avatar">
+            <i class="fa-solid fa-user-nurse"></i>
+        </div>
+        <div class="bubble"><span class="dots"></span></div>
+        `;
+      chatWindow.appendChild(typingDiv);
+      scrollToBottom();
+      return typingDiv;
+    }
+
+    function formatMarkdown(md) {
+        let html = md;
+
+        // Bold: **text**
+        html = html.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+
+        // Italic: *text*
+        html = html.replace(/\*(.*?)\*/g, "<i>$1</i>");
+
+        // Headings ### ##
+        html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+        html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+        html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+        // Bullet points
+        html = html.replace(/^\s*[-*]\s+(.*)$/gim, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\/li>)/gim, '<ul>$1</ul>');
+
+        // Numbered lists
+        html = html.replace(/^\d+\.\s+(.*)$/gim, "<ol><li>$1</li></ol>");
+        html = html.replace(/<\/ol>\s*<ol>/gim, ""); // Merge lists
+
+        html = html.replace(/\n{2,}/g, '\n');
+        return html;
+    }
+
+    function typeBotMessage(formattedHtml) {
+        // Create bot message container
+        const msgDiv = document.createElement("div");
+        msgDiv.classList.add("msg", "bot-msg");
+        msgDiv.innerHTML = `
+            <div class="avatar icon-avatar">
+                <i class="fa-solid fa-user-nurse"></i>
+            </div>
+            <div class="bubble bot-bubble"></div>
+        `;
+        const bubble = msgDiv.querySelector(".bubble");
+        chatWindow.appendChild(msgDiv);
+        scrollToBottom();
+
+        // Convert HTML string to a real DOM tree
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = formattedHtml;
+
+        // Recursively type DOM Nodes properly
+        function typeNode(node, container, callback) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                let text = node.textContent;
+                let i = 0;
+
+                function typeChar() {
+                    if (i < text.length) {
+                        container.appendChild(document.createTextNode(text[i]));
+                        i++;
+                        scrollToBottom();
+                        setTimeout(typeChar, 12); // typing speed
+                    } else {
+                        callback();
+                    }
+                }
+                typeChar();
+            }
+
+            else if (node.nodeType === Node.ELEMENT_NODE) {
+                const el = document.createElement(node.tagName.toLowerCase());
+
+                // Copy attributes (e.g., <b>, <i>, classes, etc.)
+                for (let attr of node.attributes) {
+                    el.setAttribute(attr.name, attr.value);
+                }
+
+                container.appendChild(el);
+
+                let children = Array.from(node.childNodes);
+                let index = 0;
+
+                function typeChildren() {
+                    if (index < children.length) {
+                        typeNode(children[index], el, () => {
+                            index++;
+                            typeChildren();
+                        });
+                    } else {
+                        callback();
+                    }
+                }
+                typeChildren();
+            }
+        }
+
+        // Start typing the root formatted content
+        let nodes = Array.from(tempDiv.childNodes);
+        let idx = 0;
+
+        function startTyping() {
+            if (idx < nodes.length) {
+                typeNode(nodes[idx], bubble, () => {
+                    idx++;
+                    startTyping();
+                });
+            }
+        }
+
+        startTyping();
+    }
+
+
+    // Send message
+    async function sendMessage() {
+      const msg = userInput.value.trim();
+      if (!msg) return;
+
+      addMessage(msg, "user");
+      userInput.value = "";
+
+      const typingIndicator = showTyping();
+
+      const res = await fetch("/medical_chat", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ message: msg })
+      });
+
+      const data = await res.json();
+      typingIndicator.remove();
+
+      typeBotMessage(formatMarkdown(data.reply));
+    }
+
+    sendBtn.addEventListener("click", sendMessage);
+    userInput.addEventListener("keypress", e => {
+      if (e.key === "Enter") sendMessage();
+    });
+
+    // Reset Chat
+    newChatBtn.addEventListener("click", async () => {
+    await fetch("/reset_chat", { method: "POST" });
+    chatWindow.innerHTML = `
+        <div class="bot-msg msg">
+        <div class="avatar icon-avatar">
+            <i class="fa-solid fa-user-nurse"></i>
+        </div>
+        <div class="bubble">
+            👋🏻 Hi there! I'm <b>MediFriend</b>, your AI health companion. <br>
+            How can I help you today?
+        </div>
+        </div>`;
+    });
+
+  </script>
+
+</body>
+</html>

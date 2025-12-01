@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediFriend | Prescription Reader</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+
+<body>
+  <div class="container">
+
+    <button class="back-btn" onclick="window.location.href='{{ url_for('home') }}'">
+      <i class="fa-solid fa-arrow-left"></i> Back
+    </button>
+    
+    <header>
+      {% if logo_data %}
+        <img src="{{ logo_data }}" alt="MediFriend Logo" class="logo">
+      {% endif %}
+      <h1><span>Prescription Reader</span></h1>
+      <p>Upload your doctor’s prescription image below to get a detailed explanation.</p>
+    </header>
+
+    <!-- Upload Section -->
+    <div class="upload-section" id="uploadSection">
+      <div id="dropArea" class="drop-area" onclick="document.getElementById('fileInput').click();">
+        <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+        <p>Drag & drop your prescription here<br>or click to select an image</p>
+        <input type="file" id="fileInput" accept="image/*" hidden>
+      </div>
+
+      <div id="previewContainer" class="preview-container" style="display:none;">
+        <img id="previewImage" src="" alt="Prescription Preview">
+        <button id="removeBtn" class="remove-btn"><i class="fa-solid fa-xmark"></i> Remove</button>
+      </div>
+    </div>
+
+    <!-- Explain Button -->
+    <button id="explainBtn" class="explain-btn" disabled>Explain me the prescription</button>
+
+    <!-- Output Text Box -->
+    <div id="resultContainer" class="result-container" style="display:none;">
+      <h3>Prescription Explanation</h3>
+      <div id="resultBox" class="result-box"></div>
+    </div>
+
+    <footer>
+      <p>© 2025 MediFriend | Your personal medical companion</p>
+    </footer>
+  </div>
+
+  <script>
+    console.log("Script loaded!");
+
+    const dropArea = document.getElementById('dropArea');
+    const fileInput = document.getElementById('fileInput');
+    const previewContainer = document.getElementById('previewContainer');
+    const previewImage = document.getElementById('previewImage');
+    const removeBtn = document.getElementById('removeBtn');
+    const explainBtn = document.getElementById('explainBtn');
+    const resultContainer = document.getElementById('resultContainer');
+    const resultBox = document.getElementById('resultBox');
+
+    // --- Drag & Drop Upload Handling ---
+    dropArea.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropArea.classList.add('dragover');
+    });
+
+    dropArea.addEventListener('dragleave', () => {
+      dropArea.classList.remove('dragover');
+    });
+
+    dropArea.addEventListener('drop', e => {
+      e.preventDefault();
+      dropArea.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      handleFile(file);
+    });
+
+    fileInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      handleFile(file);
+    });
+
+    function handleFile(file) {
+      if (file && file.type.startsWith('image/')) {
+        // Create a DataTransfer object so fileInput also has this file
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        fileInput.files = dataTransfer.files;  // ✅ Attach dropped file to input
+
+        const reader = new FileReader();
+        reader.onload = e => {
+          previewImage.src = e.target.result;
+          previewContainer.style.display = 'block';
+          dropArea.style.display = 'none';
+          explainBtn.disabled = false;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        alert('Please upload a valid image file.');
+      }
+    }
+    function formatMarkdown(text) {
+      // Replace headers: # -> <h3>, ## -> <h4>, etc.
+      text = text.replace(/^### (.*$)/gim, '<h4>$1</h4>');
+      text = text.replace(/^## (.*$)/gim, '<h3>$1</h3>');
+      text = text.replace(/^# (.*$)/gim, '<h2>$1</h2>');
+
+      // Bold (**text**)
+      text = text.replace(/\*\*(.*?)\*\*/gim, '<b>$1</b>');
+
+      // Bulleted list (- or *)
+      text = text.replace(/^\s*[-*]\s+(.*)$/gim, '<li>$1</li>');
+      text = text.replace(/(<li>.*<\/li>)/gim, '<ul>$1</ul>');
+
+      // Line breaks
+      text = text.replace(/\n/g, '<br>');
+      return text;
+    }
+
+
+
+    removeBtn.addEventListener('click', () => {
+      previewContainer.style.display = 'none';
+      dropArea.style.display = 'flex';
+      fileInput.value = '';
+      explainBtn.disabled = true;
+      resultContainer.style.display = 'none';
+    });
+
+    // --- Explain Button Functionality ---
+    console.log("Explain button initialized:", explainBtn);
+    explainBtn.addEventListener('click', async () => {
+      console.log("Explain button clicked!");
+
+      if (!fileInput.files[0]) {
+        console.log("❌ No file found in fileInput");
+        return;
+      }
+
+      console.log("✅ File found:", fileInput.files[0].name);
+
+      const formData = new FormData();
+      formData.append('image', fileInput.files[0]);
+      console.log("✅ FormData created");
+
+      explainBtn.textContent = 'Processing...';
+      explainBtn.disabled = true;
+      resultContainer.style.display = 'none';
+      resultBox.innerHTML = '';
+
+      try {
+        console.log("🚀 Sending fetch to backend...");
+        const res = await fetch('/process_prescription', {
+          method: 'POST',
+          body: formData
+        });
+        console.log("✅ Received raw response:", res);
+
+        const data = await res.json();
+        console.log("✅ Parsed JSON:", data);
+
+        if (data.error) {
+          resultBox.innerHTML = `<p style="color:red;">Error: ${data.error}</p>`;
+        } else {
+          resultBox.innerHTML = formatMarkdown(data.explanation);
+          resultContainer.style.display = 'block';
+
+        }
+      } catch (err) {
+        console.error("❌ Fetch error:", err);
+        resultBox.innerHTML = `<p style="color:red;">Something went wrong. Please try again.</p>`;
+      }
+
+      explainBtn.textContent = 'Explain me the prescription';
+      explainBtn.disabled = false;
+    });
+
+  </script>
+</body>
+</html>
