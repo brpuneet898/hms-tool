@@ -9,14 +9,98 @@
     <p>Schedule a visit with our doctors</p>
   </div>
   
+  {% if doctors %}
+  <form method="POST" action="{{ url_for('patient.book_appointment') }}" class="appointment-form">
+    <!-- Doctor Selection -->
+    <div class="form-section">
+      <h3><i class="fas fa-user-md"></i> Select Doctor</h3>
+      <div class="doctors-grid">
+        {% for doctor in doctors %}
+        <div class="doctor-card">
+          <input type="radio" name="doctor_id" id="doctor_{{ doctor.id }}" value="{{ doctor.id }}" required>
+          <label for="doctor_{{ doctor.id }}">
+            <div class="doctor-icon">
+              <i class="fas fa-user-md"></i>
+            </div>
+            <h4>Dr. {{ doctor.full_name }}</h4>
+            <p class="specialization"><i class="fas fa-stethoscope"></i> {{ doctor.specialization }}</p>
+            <p class="experience"><i class="fas fa-briefcase"></i> {{ doctor.experience_years }} years exp.</p>
+            <p class="fee"><i class="fas fa-rupee-sign"></i> {{ doctor.consultation_fee }}</p>
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    
+    <!-- Date and Time Selection -->
+    <div class="form-section">
+      <h3><i class="fas fa-calendar-alt"></i> Select Date & Time</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="date">
+            <i class="fas fa-calendar"></i> Appointment Date
+          </label>
+          <input type="date" id="date" name="date" required 
+                 min="{{ today }}" class="form-control">
+        </div>
+        
+        <div class="form-group">
+          <label for="time">
+            <i class="fas fa-clock"></i> Appointment Time
+          </label>
+          <select id="time" name="time" required class="form-control">
+            <option value="">Select Time</option>
+            <option value="09:00">09:00 AM</option>
+            <option value="09:30">09:30 AM</option>
+            <option value="10:00">10:00 AM</option>
+            <option value="10:30">10:30 AM</option>
+            <option value="11:00">11:00 AM</option>
+            <option value="11:30">11:30 AM</option>
+            <option value="14:00">02:00 PM</option>
+            <option value="14:30">02:30 PM</option>
+            <option value="15:00">03:00 PM</option>
+            <option value="15:30">03:30 PM</option>
+            <option value="16:00">04:00 PM</option>
+            <option value="16:30">04:30 PM</option>
+            <option value="17:00">05:00 PM</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Symptoms -->
+    <div class="form-section">
+      <h3><i class="fas fa-notes-medical"></i> Symptoms / Reason for Visit</h3>
+      <div class="form-group">
+        <textarea id="symptoms" name="symptoms" rows="4" 
+                  placeholder="Describe your symptoms or reason for consultation..." 
+                  class="form-control"></textarea>
+      </div>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="form-actions">
+      <a href="{{ url_for('patient.dashboard') }}" class="btn btn-secondary">
+        <i class="fas fa-times"></i> Cancel
+      </a>
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-check"></i> Book Appointment
+      </button>
+    </div>
+  </form>
+  {% else %}
   <div class="info-card">
-    <i class="fas fa-tools"></i>
-    <h3>Coming Soon</h3>
-    <p>This feature is under development. You'll be able to book appointments with doctors here.</p>
-    <a href="{{ url_for('patient.dashboard') }}" class="btn btn-primary">
+    <i class="fas fa-info-circle"></i>
+    <h3>No Doctors Available</h3>
+    <p>There are currently no doctors registered in the system.</p>
+  </div>
+  
+  <div class="back-link">
+    <a href="{{ url_for('patient.dashboard') }}">
       <i class="fas fa-arrow-left"></i> Back to Dashboard
     </a>
   </div>
+  {% endif %}
 </div>
 {% endblock %}
 
@@ -25,6 +109,7 @@
   .page-container {
     max-width: 1000px;
     margin: 0 auto;
+    padding-bottom: 40px;
   }
   
   .page-header {
@@ -46,6 +131,195 @@
     color: #666;
   }
   
+  .appointment-form {
+    background: white;
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  }
+  
+  .form-section {
+    margin-bottom: 35px;
+    padding-bottom: 25px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .form-section:last-of-type {
+    border-bottom: none;
+  }
+  
+  .form-section h3 {
+    color: #333;
+    margin-bottom: 20px;
+    font-size: 1.3rem;
+  }
+  
+  .form-section h3 i {
+    color: #667eea;
+    margin-right: 8px;
+  }
+  
+  /* Doctor Cards */
+  .doctors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+  }
+  
+  .doctor-card {
+    position: relative;
+  }
+  
+  .doctor-card input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+  }
+  
+  .doctor-card label {
+    display: block;
+    padding: 20px;
+    background: #f8f9fa;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+  }
+  
+  .doctor-card input[type="radio"]:checked + label {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    border-color: #667eea;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+  }
+  
+  .doctor-card label:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  }
+  
+  .doctor-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 15px;
+  }
+  
+  .doctor-icon i {
+    font-size: 30px;
+    color: white;
+  }
+  
+  .doctor-card h4 {
+    color: #333;
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+  }
+  
+  .doctor-card p {
+    color: #666;
+    font-size: 0.9rem;
+    margin: 5px 0;
+  }
+  
+  .doctor-card p i {
+    color: #667eea;
+    margin-right: 5px;
+  }
+  
+  .specialization {
+    font-weight: 600;
+    color: #667eea !important;
+  }
+  
+  /* Form Controls */
+  .form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+  }
+  
+  .form-group {
+    margin-bottom: 15px;
+  }
+  
+  .form-group label {
+    display: block;
+    color: #333;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  
+  .form-group label i {
+    color: #667eea;
+    margin-right: 5px;
+  }
+  
+  .form-control {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: 'Poppins', sans-serif;
+    transition: border-color 0.3s;
+  }
+  
+  .form-control:focus {
+    outline: none;
+    border-color: #667eea;
+  }
+  
+  textarea.form-control {
+    resize: vertical;
+    min-height: 100px;
+  }
+  
+  /* Action Buttons */
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 30px;
+  }
+  
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 30px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 1rem;
+  }
+  
+  .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+  }
+  
+  .btn-secondary {
+    background: #f0f0f0;
+    color: #666;
+  }
+  
+  .btn-secondary:hover {
+    background: #e0e0e0;
+  }
+  
+  /* Info Card */
   .info-card {
     background: white;
     padding: 60px 40px;
@@ -72,23 +346,39 @@
     margin-bottom: 30px;
   }
   
-  .btn {
-    display: inline-block;
-    padding: 12px 30px;
-    border-radius: 8px;
+  .back-link {
+    text-align: center;
+    margin-top: 30px;
+  }
+  
+  .back-link a {
+    color: #667eea;
     text-decoration: none;
     font-weight: 600;
-    transition: all 0.3s;
+    transition: color 0.3s;
   }
   
-  .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+  .back-link a:hover {
+    color: #764ba2;
   }
   
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+  .back-link i {
+    margin-right: 5px;
+  }
+  
+  @media (max-width: 768px) {
+    .doctors-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .form-actions {
+      flex-direction: column;
+    }
+    
+    .btn {
+      width: 100%;
+      justify-content: center;
+    }
   }
 </style>
 {% endblock %}

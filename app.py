@@ -2,13 +2,15 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 import os, base64, yaml, cv2, numpy as np
 import google.generativeai as genai
 import uuid
+import json
+from datetime import datetime
 
 # Import configuration and routes
 from config import Config
 from routes.auth import auth_bp, login_required
 from routes.patient import patient_bp
 from routes.doctor import doctor_bp
-from database import init_db
+from database import init_db, cleanup_old_notifications
 
 # --------------------------------------------------
 # ⚙️ Flask App Configuration
@@ -19,10 +21,42 @@ app.config.from_object(Config)
 # Initialize database on app startup
 init_db()
 
+# Cleanup old notifications (30+ days old)
+try:
+    cleanup_old_notifications()
+    print("🧹 Cleaned up old notifications")
+except:
+    pass
+
 # Register blueprints
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(patient_bp)
 app.register_blueprint(doctor_bp)
+
+# Add custom Jinja filter for JSON parsing
+@app.template_filter('from_json')
+def from_json_filter(value):
+    """Parse JSON string to Python object"""
+    try:
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+    except:
+        return value
+
+# Add custom Jinja filter for calculating age from date of birth
+@app.template_filter('calculate_age')
+def calculate_age_filter(dob_str):
+    """Calculate age from date of birth string (YYYY-MM-DD)"""
+    try:
+        if not dob_str:
+            return None
+        dob = datetime.strptime(dob_str, '%Y-%m-%d')
+        today = datetime.today()
+        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        return age
+    except:
+        return None
 
 # Store chats in memory
 chat_sessions = {}
@@ -34,6 +68,77 @@ genai.configure(api_key=Config.GEMINI_API_KEY)
 
 # Use Gemini Vision model
 model = genai.GenerativeModel("gemini-2.5-pro")
+
+# --------------------------------------------------
+# 🔍 Prescription Extraction with Gemini
+# --------------------------------------------------
+def extract_prescription_from_image(image_data):
+    """
+    Extract prescription details from an image using Gemini AI.
+    
+    Args:
+        image_data: Image bytes
+    
+    Returns:
+        tuple: (extracted_data_dict, explanation_string)
+    """
+    try:
+        # Create prompt for prescription extraction
+        prompt = """Analyze this medical prescription image and extract the following details in JSON format:
+
+{
+  "doctor_name": "Full name of the prescribing doctor",
+  "date": "Date of prescription (YYYY-MM-DD format)",
+  "diagnosis": "Diagnosed condition or symptoms",
+  "medicines": [
+    {
+      "name": "Medicine name",
+      "dosage": "Dosage (e.g., 500mg, 2 tablets)",
+      "duration": "Duration (e.g., 5 days, 2 weeks)"
+    }
+  ],
+  "notes": "Any additional instructions or notes"
+}
+
+Important:
+- If any field is not clearly visible or mentioned, use null or empty string
+- Extract all medicines as a list with their details
+- Format the date properly
+- Return ONLY valid JSON, no additional text"""
+
+        # Send to Gemini using same format as prescription reader
+        response = model.generate_content([
+            prompt,
+            {"mime_type": "image/jpeg", "data": image_data}
+        ])
+        
+        # Parse response
+        response_text = response.text.strip()
+        
+        # Remove markdown code blocks if present
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.startswith("```"):
+            response_text = response_text[3:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+        response_text = response_text.strip()
+        
+        # Parse JSON
+        extracted_data = json.loads(response_text)
+        
+        # Generate explanation
+        explanation = f"Prescription processed successfully. Extracted {len(extracted_data.get('medicines', []))} medicine(s) from the image."
+        
+        return extracted_data, explanation
+        
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing error: {e}")
+        print(f"Response text: {response_text}")
+        return None, f"Error parsing AI response: {str(e)}"
+    except Exception as e:
+        print(f"Prescription extraction error: {e}")
+        return None, f"Error processing prescription: {str(e)}"
 
 # --------------------------------------------------
 # 🩺 Logo Helper

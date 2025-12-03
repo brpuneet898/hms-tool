@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Write Prescription - MediFriend</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .prescription-container {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+
+    .page-title {
+      text-align: center;
+      color: #333;
+      margin-bottom: 40px;
+      font-size: 2em;
+      font-weight: 600;
+    }
+
+    .patient-info-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      border-radius: 15px;
+      margin-bottom: 30px;
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .patient-info-card h2 {
+      margin: 0 0 20px 0;
+      font-size: 1.5em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .patient-info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .info-label {
+      font-size: 0.85em;
+      opacity: 0.9;
+      font-weight: 500;
+    }
+
+    .info-value {
+      font-size: 1.1em;
+      font-weight: 600;
+    }
+
+    .prescription-form {
+      background: white;
+      padding: 40px;
+      border-radius: 15px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .form-group {
+      margin-bottom: 30px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 10px;
+      color: #333;
+      font-weight: 600;
+      font-size: 1.05em;
+    }
+
+    .form-group label .required {
+      color: #e74c3c;
+      margin-left: 3px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 12px 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1em;
+      font-family: 'Poppins', sans-serif;
+      transition: all 0.3s ease;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    textarea.form-control {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .medicines-section {
+      margin-bottom: 30px;
+    }
+
+    .medicines-section h3 {
+      color: #333;
+      margin-bottom: 20px;
+      font-size: 1.3em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .medicine-row {
+      display: grid;
+      grid-template-columns: 2fr 1.5fr 1.5fr auto;
+      gap: 15px;
+      margin-bottom: 15px;
+      align-items: start;
+    }
+
+    .medicine-row .form-control {
+      margin-bottom: 0;
+    }
+
+    .btn-remove {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 12px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1em;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-remove:hover {
+      background: #c0392b;
+      transform: translateY(-2px);
+    }
+
+    .btn-add {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1em;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .btn-add:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 15px;
+      justify-content: flex-end;
+      margin-top: 40px;
+      padding-top: 30px;
+      border-top: 2px solid #f0f0f0;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.1em;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #666;
+      border: 2px solid #e0e0e0;
+      padding: 15px 40px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.1em;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-secondary:hover {
+      border-color: #667eea;
+      color: #667eea;
+      transform: translateY(-2px);
+    }
+
+    .input-hint {
+      font-size: 0.85em;
+      color: #999;
+      margin-top: 5px;
+      font-style: italic;
+    }
+
+    @media (max-width: 768px) {
+      .medicine-row {
+        grid-template-columns: 1fr;
+      }
+
+      .btn-remove {
+        width: 100%;
+      }
+
+      .form-actions {
+        flex-direction: column;
+      }
+
+      .btn-primary,
+      .btn-secondary {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="prescription-container">
+    <h1 class="page-title">
+      <i class="fas fa-prescription"></i> Write Prescription
+    </h1>
+
+    <!-- Patient Information Card -->
+    <div class="patient-info-card">
+      <h2>
+        <i class="fas fa-user"></i> Patient Information
+      </h2>
+      <div class="patient-info-grid">
+        <div class="info-item">
+          <span class="info-label">Name</span>
+          <span class="info-value">{{ patient.full_name }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Age</span>
+          <span class="info-value">{{ patient.dob | calculate_age if patient.dob else 'N/A' }} {{ 'years' if patient.dob else '' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Gender</span>
+          <span class="info-value">{{ patient.gender if patient.gender else 'N/A' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Blood Group</span>
+          <span class="info-value">{{ patient.blood_group if patient.blood_group else 'N/A' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Allergies</span>
+          <span class="info-value">{{ patient.allergies if patient.allergies else 'None' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Chronic Conditions</span>
+          <span class="info-value">{{ patient.chronic_conditions if patient.chronic_conditions else 'None' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Prescription Form -->
+    <form method="POST" class="prescription-form" id="prescriptionForm">
+      <!-- Diagnosis -->
+      <div class="form-group">
+        <label for="diagnosis">
+          <i class="fas fa-stethoscope"></i> Diagnosis
+          <span class="required">*</span>
+        </label>
+        <textarea 
+          id="diagnosis" 
+          name="diagnosis" 
+          class="form-control" 
+          placeholder="Enter diagnosis details..."
+          required
+        ></textarea>
+        <div class="input-hint">Describe the condition or findings</div>
+      </div>
+
+      <!-- Medicines -->
+      <div class="medicines-section">
+        <h3>
+          <i class="fas fa-pills"></i> Medicines
+        </h3>
+        <div id="medicinesContainer">
+          <!-- Initial medicine row -->
+          <div class="medicine-row">
+            <input 
+              type="text" 
+              name="medicine_name[]" 
+              class="form-control" 
+              placeholder="Medicine name"
+            >
+            <input 
+              type="text" 
+              name="medicine_dosage[]" 
+              class="form-control" 
+              placeholder="Dosage (e.g., 500mg)"
+            >
+            <input 
+              type="text" 
+              name="medicine_duration[]" 
+              class="form-control" 
+              placeholder="Duration (e.g., 7 days)"
+            >
+            <button type="button" class="btn-remove" onclick="removeMedicine(this)">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="btn-add" onclick="addMedicine()">
+          <i class="fas fa-plus"></i> Add Another Medicine
+        </button>
+      </div>
+
+      <!-- Notes -->
+      <div class="form-group">
+        <label for="notes">
+          <i class="fas fa-notes-medical"></i> Additional Notes
+        </label>
+        <textarea 
+          id="notes" 
+          name="notes" 
+          class="form-control" 
+          placeholder="Any additional instructions or notes (optional)..."
+        ></textarea>
+        <div class="input-hint">Special instructions, follow-up advice, etc.</div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="form-actions">
+        <a href="{{ url_for('doctor.appointments') }}" class="btn-secondary">
+          <i class="fas fa-times"></i> Cancel
+        </a>
+        <button type="submit" class="btn-primary">
+          <i class="fas fa-save"></i> Save Prescription
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    function addMedicine() {
+      const container = document.getElementById('medicinesContainer');
+      const newRow = document.createElement('div');
+      newRow.className = 'medicine-row';
+      newRow.innerHTML = `
+        <input 
+          type="text" 
+          name="medicine_name[]" 
+          class="form-control" 
+          placeholder="Medicine name"
+        >
+        <input 
+          type="text" 
+          name="medicine_dosage[]" 
+          class="form-control" 
+          placeholder="Dosage (e.g., 500mg)"
+        >
+        <input 
+          type="text" 
+          name="medicine_duration[]" 
+          class="form-control" 
+          placeholder="Duration (e.g., 7 days)"
+        >
+        <button type="button" class="btn-remove" onclick="removeMedicine(this)">
+          <i class="fas fa-trash"></i>
+        </button>
+      `;
+      container.appendChild(newRow);
+    }
+
+    function removeMedicine(button) {
+      const container = document.getElementById('medicinesContainer');
+      const rows = container.getElementsByClassName('medicine-row');
+      
+      // Keep at least one medicine row
+      if (rows.length > 1) {
+        button.closest('.medicine-row').remove();
+      } else {
+        alert('At least one medicine is required');
+      }
+    }
+
+    // No form validation needed for medicines - doctor can prescribe tests or just diagnosis
+  </script>
+</body>
+</html>

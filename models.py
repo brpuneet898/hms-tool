@@ -160,7 +160,8 @@ class Prescription:
 
 class Upload:
     """
-    Stores patient-uploaded handwritten prescriptions and scanned documents
+    User uploaded files (prescriptions, lab reports, etc.)
+    Stores extracted data as JSON instead of file path
     """
     TABLE_NAME = "uploads"
     
@@ -171,7 +172,7 @@ class Upload:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             patient_id INTEGER NOT NULL,
             filename TEXT NOT NULL,
-            file_path TEXT NOT NULL,
+            extracted_data TEXT,
             explanation TEXT,
             upload_type TEXT DEFAULT 'PRESCRIPTION' CHECK(upload_type IN ('PRESCRIPTION', 'LAB_REPORT', 'OTHER')),
             uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -187,6 +188,40 @@ class Upload:
         ]
 
 
+class Notification:
+    """
+    Notifications for users about appointments, prescriptions, etc.
+    """
+    TABLE_NAME = "notifications"
+    
+    @staticmethod
+    def create_table_sql():
+        return """
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('APPOINTMENT_ACCEPTED', 'APPOINTMENT_REJECTED', 'PRESCRIPTION_WRITTEN', 'APPOINTMENT_REQUESTED')),
+            message TEXT NOT NULL,
+            link TEXT,
+            is_read INTEGER DEFAULT 0,
+            appointment_id INTEGER,
+            prescription_id INTEGER,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE,
+            FOREIGN KEY (prescription_id) REFERENCES prescriptions(id) ON DELETE CASCADE
+        )
+        """
+    
+    @staticmethod
+    def create_indexes_sql():
+        return [
+            "CREATE INDEX IF NOT EXISTS idx_notification_user ON notifications(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_notification_read ON notifications(is_read)",
+            "CREATE INDEX IF NOT EXISTS idx_notification_created ON notifications(created_at)"
+        ]
+
+
 # List of all model classes for easy iteration
 ALL_MODELS = [
     User,
@@ -194,5 +229,6 @@ ALL_MODELS = [
     DoctorDetails,
     Appointment,
     Prescription,
-    Upload
+    Upload,
+    Notification
 ]

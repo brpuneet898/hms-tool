@@ -28,14 +28,6 @@
     </div>
     
     <div class="dashboard-card action-card">
-      <a href="#" class="action-link">
-        <i class="fas fa-prescription"></i>
-        <h3>Write Prescription</h3>
-        <p>Create prescriptions for patients</p>
-      </a>
-    </div>
-    
-    <div class="dashboard-card action-card">
       <a href="{{ url_for('auth.profile') }}" class="action-link">
         <i class="fas fa-user-md"></i>
         <h3>My Profile</h3>
@@ -50,19 +42,19 @@
       <div class="stat-card">
         <i class="fas fa-clock"></i>
         <h3>Pending Appointments</h3>
-        <p class="stat-number">Coming soon</p>
+        <p class="stat-number">{{ stats.pending_appointments }}</p>
       </div>
       
       <div class="stat-card">
         <i class="fas fa-check-circle"></i>
         <h3>Today's Appointments</h3>
-        <p class="stat-number">Coming soon</p>
+        <p class="stat-number">{{ stats.today_appointments }}</p>
       </div>
       
       <div class="stat-card">
         <i class="fas fa-users"></i>
         <h3>Total Patients</h3>
-        <p class="stat-number">Coming soon</p>
+        <p class="stat-number">{{ stats.total_patients }}</p>
       </div>
     </div>
   </div>

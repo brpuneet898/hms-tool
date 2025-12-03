@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile - MediFriend{% endblock %}
+
+{% block content %}
+<div class="page-container">
+  <div class="page-header">
+    <h1><i class="fas fa-user-edit"></i> Edit Profile</h1>
+    <p>Update your information</p>
+  </div>
+  
+  <div class="profile-card">
+    <form method="POST" action="{{ url_for('auth.edit_profile') }}">
+      <h3><i class="fas fa-user"></i> Basic Information</h3>
+      
+      <div class="form-group">
+        <label for="full_name"><i class="fas fa-id-card"></i> Full Name *</label>
+        <input type="text" id="full_name" name="full_name" value="{{ user.full_name }}" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="phone"><i class="fas fa-phone"></i> Phone Number</label>
+        <input type="tel" id="phone" name="phone" value="{{ user.phone if user.phone else '' }}">
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label for="gender"><i class="fas fa-venus-mars"></i> Gender</label>
+          <select id="gender" name="gender">
+            <option value="">Select Gender</option>
+            <option value="Male" {% if user.gender == 'Male' %}selected{% endif %}>Male</option>
+            <option value="Female" {% if user.gender == 'Female' %}selected{% endif %}>Female</option>
+            <option value="Other" {% if user.gender == 'Other' %}selected{% endif %}>Other</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="dob"><i class="fas fa-calendar"></i> Date of Birth</label>
+          <input type="date" id="dob" name="dob" value="{{ user.dob if user.dob else '' }}">
+        </div>
+      </div>
+      
+      {% if role == 'PATIENT' %}
+      <h3><i class="fas fa-notes-medical"></i> Medical Information</h3>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label for="blood_group"><i class="fas fa-tint"></i> Blood Group</label>
+          <select id="blood_group" name="blood_group">
+            <option value="">Select Blood Group</option>
+            {% for bg in ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] %}
+            <option value="{{ bg }}" {% if user.blood_group == bg %}selected{% endif %}>{{ bg }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="emergency_contact"><i class="fas fa-phone-square"></i> Emergency Contact</label>
+          <input type="tel" id="emergency_contact" name="emergency_contact" 
+                 value="{{ user.emergency_contact if user.emergency_contact else '' }}">
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label for="allergies"><i class="fas fa-allergies"></i> Allergies</label>
+        <textarea id="allergies" name="allergies" rows="3">{{ user.allergies if user.allergies else '' }}</textarea>
+      </div>
+      
+      <div class="form-group">
+        <label for="chronic_conditions"><i class="fas fa-heartbeat"></i> Chronic Conditions</label>
+        <textarea id="chronic_conditions" name="chronic_conditions" rows="3">{{ user.chronic_conditions if user.chronic_conditions else '' }}</textarea>
+      </div>
+      
+      {% elif role == 'DOCTOR' %}
+      <h3><i class="fas fa-stethoscope"></i> Professional Information</h3>
+      
+      <div class="form-group">
+        <label for="specialization"><i class="fas fa-user-md"></i> Specialization *</label>
+        <input type="text" id="specialization" name="specialization" 
+               value="{{ user.specialization if user.specialization else '' }}" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="qualification"><i class="fas fa-graduation-cap"></i> Qualification</label>
+        <input type="text" id="qualification" name="qualification" 
+               value="{{ user.qualification if user.qualification else '' }}">
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label for="experience_years"><i class="fas fa-award"></i> Experience (Years)</label>
+          <input type="number" id="experience_years" name="experience_years" min="0" 
+                 value="{{ user.experience_years if user.experience_years else 0 }}">
+        </div>
+        
+        <div class="form-group">
+          <label for="consultation_fee"><i class="fas fa-rupee-sign"></i> Consultation Fee (₹)</label>
+          <input type="number" id="consultation_fee" name="consultation_fee" min="0" step="0.01"
+                 value="{{ user.consultation_fee if user.consultation_fee else 0 }}">
+        </div>
+      </div>
+      {% endif %}
+      
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-save"></i> Save Changes
+        </button>
+        <a href="{{ url_for('auth.profile') }}" class="btn btn-secondary">
+          <i class="fas fa-times"></i> Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .page-container {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  
+  .page-header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  
+  .page-header h1 {
+    font-size: 2rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 10px;
+  }
+  
+  .page-header p {
+    color: #666;
+  }
+  
+  .profile-card {
+    background: white;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  }
+  
+  .profile-card h3 {
+    color: #333;
+    margin: 30px 0 20px 0;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #f0f0f0;
+  }
+  
+  .profile-card h3:first-child {
+    margin-top: 0;
+  }
+  
+  .profile-card h3 i {
+    color: #667eea;
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+    flex: 1;
+  }
+  
+  .form-row {
+    display: flex;
+    gap: 20px;
+  }
+  
+  .form-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: #333;
+    font-weight: 600;
+  }
+  
+  .form-group label i {
+    color: #667eea;
+  }
+  
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+    font-family: 'Poppins', sans-serif;
+  }
+  
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: #667eea;
+  }
+  
+  .form-group textarea {
+    resize: vertical;
+  }
+  
+  .form-actions {
+    display: flex;
+    gap: 15px;
+    margin-top: 30px;
+    justify-content: center;
+  }
+  
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 30px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+  }
+  
+  .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+  }
+  
+  .btn-secondary {
+    background: #6c757d;
+    color: white;
+  }
+  
+  .btn-secondary:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(108, 117, 125, 0.3);
+  }
+</style>
+{% endblock %}

@@ -9,11 +9,100 @@
     <p>Access patient records and medical history</p>
   </div>
   
+  {% if patients %}
+  <div class="patients-grid">
+    {% for patient in patients %}
+    <div class="patient-card">
+      <div class="patient-header">
+        <div class="patient-avatar">
+          <i class="fas fa-user"></i>
+        </div>
+        <div class="patient-basic-info">
+          <h3>{{ patient.full_name }}</h3>
+          <p class="patient-meta">
+            {% if patient.gender %}
+            <span><i class="fas fa-venus-mars"></i> {{ patient.gender }}</span>
+            {% endif %}
+            {% if patient.dob %}
+            <span><i class="fas fa-calendar"></i> {{ patient.dob }}</span>
+            {% endif %}
+          </p>
+        </div>
+      </div>
+      
+      <div class="patient-contact">
+        <div class="contact-item">
+          <i class="fas fa-phone"></i>
+          <span>{{ patient.phone }}</span>
+        </div>
+        <div class="contact-item">
+          <i class="fas fa-envelope"></i>
+          <span>{{ patient.email }}</span>
+        </div>
+      </div>
+      
+      <div class="patient-medical">
+        {% if patient.blood_group %}
+        <div class="medical-badge">
+          <i class="fas fa-tint"></i> {{ patient.blood_group }}
+        </div>
+        {% endif %}
+        {% if patient.allergies %}
+        <div class="medical-info">
+          <strong><i class="fas fa-allergies"></i> Allergies:</strong>
+          <p>{{ patient.allergies }}</p>
+        </div>
+        {% endif %}
+        {% if patient.chronic_conditions %}
+        <div class="medical-info">
+          <strong><i class="fas fa-heartbeat"></i> Chronic Conditions:</strong>
+          <p>{{ patient.chronic_conditions }}</p>
+        </div>
+        {% endif %}
+        {% if patient.emergency_contact %}
+        <div class="medical-info">
+          <strong><i class="fas fa-phone-square"></i> Emergency Contact:</strong>
+          <p>{{ patient.emergency_contact }}</p>
+        </div>
+        {% endif %}
+      </div>
+      
+      <div class="patient-stats">
+        <div class="stat-item">
+          <i class="fas fa-calendar-check"></i>
+          <div>
+            <strong>{{ patient.total_appointments }}</strong>
+            <span>Total Visits</span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <i class="fas fa-check-circle"></i>
+          <div>
+            <strong>{{ patient.completed_appointments }}</strong>
+            <span>Completed</span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <i class="fas fa-clock"></i>
+          <div>
+            <strong>{{ patient.last_visit }}</strong>
+            <span>Last Visit</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
   <div class="info-card">
-    <i class="fas fa-tools"></i>
-    <h3>Coming Soon</h3>
-    <p>This feature is under development. You'll be able to view patient records here.</p>
-    <a href="{{ url_for('doctor.dashboard') }}" class="btn btn-primary">
+    <i class="fas fa-user-injured"></i>
+    <h3>No Patients Yet</h3>
+    <p>You don't have any patients yet. Once you confirm appointments, patients will appear here.</p>
+  </div>
+  {% endif %}
+  
+  <div class="back-link">
+    <a href="{{ url_for('doctor.dashboard') }}">
       <i class="fas fa-arrow-left"></i> Back to Dashboard
     </a>
   </div>
@@ -23,8 +112,9 @@
 {% block extra_css %}
 <style>
   .page-container {
-    max-width: 1000px;
+    max-width: 1200px;
     margin: 0 auto;
+    padding-bottom: 40px;
   }
   
   .page-header {
@@ -34,16 +124,205 @@
   
   .page-header h1 {
     font-size: 2rem;
-    color: #333;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
     margin-bottom: 10px;
-  }
-  
-  .page-header h1 i {
-    color: #667eea;
   }
   
   .page-header p {
     color: #666;
+  }
+  
+  .patients-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 25px;
+    margin-bottom: 30px;
+  }
+  
+  .patient-card {
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    transition: all 0.3s;
+    border-left: 4px solid #667eea;
+  }
+  
+  .patient-card:hover {
+    box-shadow: 0 6px 25px rgba(0,0,0,0.15);
+    transform: translateY(-3px);
+  }
+  
+  .patient-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f0f0f0;
+  }
+  
+  .patient-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.8rem;
+    flex-shrink: 0;
+  }
+  
+  .patient-basic-info h3 {
+    margin: 0 0 8px 0;
+    color: #333;
+    font-size: 1.3rem;
+  }
+  
+  .patient-meta {
+    display: flex;
+    gap: 15px;
+    color: #666;
+    font-size: 0.85rem;
+    margin: 0;
+    flex-wrap: wrap;
+  }
+  
+  .patient-meta span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .patient-contact {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .contact-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #555;
+    font-size: 0.9rem;
+  }
+  
+  .contact-item i {
+    color: #667eea;
+    width: 20px;
+  }
+  
+  .patient-medical {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .medical-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+  }
+  
+  .medical-info {
+    margin-top: 12px;
+  }
+  
+  .medical-info:first-of-type {
+    margin-top: 0;
+  }
+  
+  .medical-info strong {
+    display: block;
+    color: #333;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+  }
+  
+  .medical-info p {
+    margin: 0;
+    color: #555;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  
+  .patient-stats {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+    border-radius: 10px;
+  }
+  
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    flex: 1;
+    gap: 8px;
+  }
+  
+  .stat-item i {
+    font-size: 1.5rem;
+    color: #667eea;
+  }
+  
+  .stat-item div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .stat-item strong {
+    color: #333;
+    font-size: 1.1rem;
+    white-space: nowrap;
+  }
+  
+  .stat-item span {
+    color: #666;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+  
+  .patient-actions {
+    text-align: center;
+  }
+  
+  .btn-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 25px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s;
+  }
+  
+  .btn-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
   }
   
   .info-card {
@@ -69,26 +348,37 @@
   .info-card p {
     color: #666;
     font-size: 1.1rem;
-    margin-bottom: 30px;
   }
   
-  .btn {
-    display: inline-block;
-    padding: 12px 30px;
-    border-radius: 8px;
+  .back-link {
+    text-align: center;
+    margin-top: 30px;
+  }
+  
+  .back-link a {
+    color: #667eea;
     text-decoration: none;
     font-weight: 600;
-    transition: all 0.3s;
+    transition: color 0.3s;
   }
   
-  .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+  .back-link a:hover {
+    color: #764ba2;
   }
   
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+  .back-link i {
+    margin-right: 5px;
+  }
+  
+  @media (max-width: 768px) {
+    .patients-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .patient-stats {
+      flex-direction: column;
+      gap: 10px;
+    }
   }
 </style>
 {% endblock %}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Doctor Appointments - MediFriend{% endblock %}
+{% block title %}My Appointments - MediFriend{% endblock %}
 
 {% block content %}
 <div class="page-container">
@@ -9,11 +9,93 @@
     <p>View and manage patient appointments</p>
   </div>
   
+  {% if appointments %}
+  <div class="appointments-list">
+    {% for appointment in appointments %}
+    <div class="appointment-card status-{{ appointment.status|lower }}">
+      <div class="appointment-header">
+        <div class="patient-info">
+          <div class="patient-avatar">
+            <i class="fas fa-user"></i>
+          </div>
+          <div>
+            <h3>{{ appointment.patient_name }}</h3>
+            <p class="patient-details">
+              <span><i class="fas fa-phone"></i> {{ appointment.patient_phone }}</span>
+              {% if appointment.patient_gender %}
+              <span><i class="fas fa-venus-mars"></i> {{ appointment.patient_gender }}</span>
+              {% endif %}
+            </p>
+          </div>
+        </div>
+        <div class="status-badge status-{{ appointment.status|lower }}">
+          {{ appointment.status }}
+        </div>
+      </div>
+      
+      <div class="appointment-details">
+        <div class="detail-item">
+          <i class="fas fa-calendar"></i>
+          <span>{{ appointment.date }}</span>
+        </div>
+        <div class="detail-item">
+          <i class="fas fa-clock"></i>
+          <span>{{ appointment.time }}</span>
+        </div>
+        <div class="detail-item">
+          <i class="fas fa-info-circle"></i>
+          <span>Booked on {{ appointment.created_at[:10] }}</span>
+        </div>
+      </div>
+      
+      {% if appointment.symptoms %}
+      <div class="symptoms-section">
+        <strong><i class="fas fa-notes-medical"></i> Patient Symptoms:</strong>
+        <p>{{ appointment.symptoms }}</p>
+      </div>
+      {% endif %}
+      
+      <div class="appointment-actions">
+        {% if appointment.status == 'PENDING' %}
+        <form method="POST" action="{{ url_for('doctor.accept_appointment', appointment_id=appointment.id) }}" style="display: inline;">
+          <button type="submit" class="btn-accept">
+            <i class="fas fa-check"></i> Accept
+          </button>
+        </form>
+        <form method="POST" action="{{ url_for('doctor.reject_appointment', appointment_id=appointment.id) }}" 
+              onsubmit="return confirm('Reject this appointment?');" style="display: inline;">
+          <button type="submit" class="btn-reject">
+            <i class="fas fa-times"></i> Reject
+          </button>
+        </form>
+        {% elif appointment.status == 'CONFIRMED' %}
+        <form method="POST" action="{{ url_for('doctor.complete_appointment', appointment_id=appointment.id) }}" style="display: inline;">
+          <button type="submit" class="btn-complete">
+            <i class="fas fa-check-circle"></i> Mark as Completed
+          </button>
+        </form>
+        <a href="{{ url_for('doctor.write_prescription', patient_id=appointment.patient_id, appointment_id=appointment.id) }}" class="btn-prescription">
+          <i class="fas fa-prescription"></i> Write Prescription
+        </a>
+        {% elif appointment.status == 'COMPLETED' %}
+        <span class="completed-label">
+          <i class="fas fa-check-double"></i> Appointment completed
+        </span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
   <div class="info-card">
-    <i class="fas fa-tools"></i>
-    <h3>Coming Soon</h3>
-    <p>This feature is under development. You'll be able to manage appointments here.</p>
-    <a href="{{ url_for('doctor.dashboard') }}" class="btn btn-primary">
+    <i class="fas fa-calendar-times"></i>
+    <h3>No Appointments Yet</h3>
+    <p>You don't have any appointments scheduled. They will appear here once patients book.</p>
+  </div>
+  {% endif %}
+  
+  <div class="back-link">
+    <a href="{{ url_for('doctor.dashboard') }}">
       <i class="fas fa-arrow-left"></i> Back to Dashboard
     </a>
   </div>
@@ -25,6 +107,7 @@
   .page-container {
     max-width: 1000px;
     margin: 0 auto;
+    padding-bottom: 40px;
   }
   
   .page-header {
@@ -34,16 +117,237 @@
   
   .page-header h1 {
     font-size: 2rem;
-    color: #333;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
     margin-bottom: 10px;
-  }
-  
-  .page-header h1 i {
-    color: #667eea;
   }
   
   .page-header p {
     color: #666;
+  }
+  
+  .appointments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .appointment-card {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    border-left: 4px solid #ddd;
+    transition: all 0.3s;
+  }
+  
+  .appointment-card:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    transform: translateY(-2px);
+  }
+  
+  .appointment-card.status-pending {
+    border-left-color: #ffc107;
+  }
+  
+  .appointment-card.status-confirmed {
+    border-left-color: #28a745;
+  }
+  
+  .appointment-card.status-completed {
+    border-left-color: #6c757d;
+  }
+  
+  .appointment-card.status-rejected {
+    border-left-color: #dc3545;
+  }
+  
+  .appointment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f0f0f0;
+  }
+  
+  .patient-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+  
+  .patient-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+  }
+  
+  .patient-info h3 {
+    margin: 0 0 5px 0;
+    color: #333;
+    font-size: 1.3rem;
+  }
+  
+  .patient-details {
+    display: flex;
+    gap: 15px;
+    color: #666;
+    font-size: 0.9rem;
+    margin: 0;
+  }
+  
+  .patient-details span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .status-badge {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+  }
+  
+  .status-badge.status-pending {
+    background: #fff3cd;
+    color: #856404;
+  }
+  
+  .status-badge.status-confirmed {
+    background: #d4edda;
+    color: #155724;
+  }
+  
+  .status-badge.status-completed {
+    background: #d6d8db;
+    color: #383d41;
+  }
+  
+  .status-badge.status-rejected {
+    background: #f8d7da;
+    color: #721c24;
+  }
+  
+  .appointment-details {
+    display: flex;
+    gap: 30px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+  }
+  
+  .detail-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #555;
+    font-size: 0.95rem;
+  }
+  
+  .detail-item i {
+    color: #667eea;
+  }
+  
+  .symptoms-section {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+  }
+  
+  .symptoms-section strong {
+    display: block;
+    color: #333;
+    margin-bottom: 8px;
+  }
+  
+  .symptoms-section p {
+    margin: 0;
+    color: #555;
+    line-height: 1.6;
+  }
+  
+  .appointment-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  
+  .appointment-actions button,
+  .appointment-actions a {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+  }
+  
+  .btn-accept {
+    background: #28a745;
+    color: white;
+  }
+  
+  .btn-accept:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+  }
+  
+  .btn-reject {
+    background: #dc3545;
+    color: white;
+  }
+  
+  .btn-reject:hover {
+    background: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+  }
+  
+  .btn-complete {
+    background: #17a2b8;
+    color: white;
+  }
+  
+  .btn-complete:hover {
+    background: #138496;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(23, 162, 184, 0.3);
+  }
+  
+  .btn-prescription {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+  }
+  
+  .btn-prescription:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+  
+  .completed-label {
+    color: #6c757d;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   
   .info-card {
@@ -69,26 +373,50 @@
   .info-card p {
     color: #666;
     font-size: 1.1rem;
-    margin-bottom: 30px;
   }
   
-  .btn {
-    display: inline-block;
-    padding: 12px 30px;
-    border-radius: 8px;
+  .back-link {
+    text-align: center;
+    margin-top: 30px;
+  }
+  
+  .back-link a {
+    color: #667eea;
     text-decoration: none;
     font-weight: 600;
-    transition: all 0.3s;
+    transition: color 0.3s;
   }
   
-  .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+  .back-link a:hover {
+    color: #764ba2;
   }
   
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+  .back-link i {
+    margin-right: 5px;
+  }
+  
+  @media (max-width: 768px) {
+    .appointment-header {
+      flex-direction: column;
+      gap: 15px;
+      align-items: flex-start;
+    }
+    
+    .appointment-details {
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .appointment-actions {
+      flex-direction: column;
+      width: 100%;
+    }
+    
+    .appointment-actions button,
+    .appointment-actions a {
+      width: 100%;
+      justify-content: center;
+    }
   }
 </style>
 {% endblock %}

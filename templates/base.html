@@ -54,11 +54,25 @@
           </a>
         {% endif %}
         
-        <a href="#" class="nav-link" id="notificationsBtn" title="Notifications">
-          <i class="fas fa-bell"></i>
-          <span class="notification-badge">3</span>
-          <span class="nav-text">Notifications</span>
-        </a>
+        {% if session.role == 'PATIENT' or session.role == 'DOCTOR' %}
+        <div class="notification-container">
+          <a href="#" class="nav-link" id="notificationsBtn" title="Notifications">
+            <i class="fas fa-bell"></i>
+            <span class="notification-badge" id="notificationCount" style="display: none;"></span>
+            <span class="nav-text">Notifications</span>
+          </a>
+          <div class="notification-dropdown" id="notificationDropdown">
+            <div class="notification-header">
+              <h4>Notifications</h4>
+            </div>
+            <div class="notification-list" id="notificationList">
+              <div class="notification-loading">
+                <i class="fas fa-spinner fa-spin"></i> Loading...
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
         
         <a href="{{ url_for('auth.profile') }}" class="nav-link" title="Profile">
           <i class="fas fa-user-circle"></i>
@@ -118,14 +132,139 @@
       });
     }
     
-    // Notification panel (placeholder for now)
+    // Notification functionality for patients and doctors
+    {% if session.role == 'PATIENT' or session.role == 'DOCTOR' %}
     const notificationsBtn = document.getElementById('notificationsBtn');
-    if (notificationsBtn) {
-      notificationsBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        alert('Notifications feature coming soon!\n\nYou will see:\n• Appointment reminders\n• New prescriptions\n• Doctor messages\n• System updates');
-      });
+    const notificationDropdown = document.getElementById('notificationDropdown');
+    const notificationCount = document.getElementById('notificationCount');
+    const notificationList = document.getElementById('notificationList');
+    const userRole = '{{ session.role }}';
+    const apiPrefix = userRole === 'PATIENT' ? '/patient' : '/doctor';
+    
+    // Format time ago
+    function timeAgo(dateString) {
+      const now = new Date();
+      const past = new Date(dateString);
+      const seconds = Math.floor((now - past) / 1000);
+      
+      if (seconds < 60) return 'Just now';
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return minutes + 'm ago';
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return hours + 'h ago';
+      const days = Math.floor(hours / 24);
+      if (days < 7) return days + 'd ago';
+      return past.toLocaleDateString();
     }
+    
+    // Fetch and display notifications
+    async function loadNotifications() {
+      try {
+        const response = await fetch(apiPrefix + '/api/notifications');
+        const data = await response.json();
+        
+        if (data.success && data.notifications.length > 0) {
+          notificationList.innerHTML = data.notifications.map(notif => {
+            const icon = notif.type === 'APPOINTMENT_ACCEPTED' ? 'fa-check-circle' :
+                        notif.type === 'APPOINTMENT_REJECTED' ? 'fa-times-circle' :
+                        notif.type === 'APPOINTMENT_REQUESTED' ? 'fa-calendar-plus' :
+                        'fa-prescription';
+            const clickable = notif.link ? '' : 'non-clickable';
+            
+            return `
+              <div class="notification-item ${clickable}" data-link="${notif.link || ''}" data-id="${notif.id}">
+                <div class="notification-icon">
+                  <i class="fas ${icon}"></i>
+                </div>
+                <div class="notification-content">
+                  <div class="notification-message">${notif.message}</div>
+                  <div class="notification-time">${timeAgo(notif.created_at)}</div>
+                </div>
+              </div>
+            `;
+          }).join('');
+          
+          // Add click handlers
+          document.querySelectorAll('.notification-item').forEach(item => {
+            const link = item.dataset.link;
+            if (link) {
+              item.addEventListener('click', () => {
+                window.location.href = link;
+              });
+            }
+          });
+        } else {
+          notificationList.innerHTML = `
+            <div class="notification-empty">
+              <i class="fas fa-bell-slash"></i>
+              <p>No new notifications</p>
+            </div>
+          `;
+        }
+      } catch (error) {
+        console.error('Error loading notifications:', error);
+        notificationList.innerHTML = `
+          <div class="notification-empty">
+            <p>Failed to load notifications</p>
+          </div>
+        `;
+      }
+    }
+    
+    // Update notification count
+    async function updateNotificationCount() {
+      try {
+        const response = await fetch(apiPrefix + '/api/notifications/count');
+        const data = await response.json();
+        
+        if (data.success && data.count > 0) {
+          notificationCount.textContent = data.count;
+          notificationCount.style.display = 'block';
+        } else {
+          notificationCount.style.display = 'none';
+        }
+      } catch (error) {
+        console.error('Error updating count:', error);
+      }
+    }
+    
+    // Toggle notification dropdown
+    if (notificationsBtn) {
+      notificationsBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        
+        const isActive = notificationDropdown.classList.contains('active');
+        
+        if (!isActive) {
+          // Opening - load notifications
+          await loadNotifications();
+          notificationDropdown.classList.add('active');
+          
+          // Mark as read after a short delay
+          setTimeout(async () => {
+            await fetch(apiPrefix + '/api/notifications/mark-read', { method: 'POST' });
+            notificationCount.style.display = 'none';
+          }, 500);
+        } else {
+          // Closing
+          notificationDropdown.classList.remove('active');
+        }
+      });
+      
+      // Close dropdown when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!notificationsBtn.contains(e.target) && !notificationDropdown.contains(e.target)) {
+          notificationDropdown.classList.remove('active');
+        }
+      });
+      
+      // Initial count load
+      updateNotificationCount();
+      
+      // Poll for new notifications every 30 seconds
+      setInterval(updateNotificationCount, 30000);
+    }
+    {% endif %}
   </script>
 </body>
 </html>

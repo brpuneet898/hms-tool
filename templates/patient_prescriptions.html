@@ -9,22 +9,216 @@
     <p>View all your prescriptions and medical records</p>
   </div>
   
-  <div class="info-card">
-    <i class="fas fa-tools"></i>
-    <h3>Coming Soon</h3>
-    <p>This feature is under development. You'll be able to view all your prescriptions here.</p>
-    <a href="{{ url_for('patient.dashboard') }}" class="btn btn-primary">
+  <!-- Section 1: Doctor Prescriptions from Platform -->
+  <div class="section-header">
+    <h2><i class="fas fa-user-md"></i> Prescriptions from Doctors</h2>
+    <span class="count-badge">{{ prescriptions|length }}</span>
+  </div>
+  
+  {% if prescriptions %}
+  <div class="prescriptions-list">
+    {% for prescription in prescriptions %}
+    <div class="prescription-card">
+      <div class="prescription-header">
+        <div class="doctor-info">
+          <div class="doctor-icon">
+            <i class="fas fa-user-md"></i>
+          </div>
+          <div>
+            <h3>Dr. {{ prescription.doctor_name }}</h3>
+            <p class="specialization"><i class="fas fa-stethoscope"></i> {{ prescription.specialization }}</p>
+          </div>
+        </div>
+        <div class="prescription-date">
+          <i class="fas fa-calendar"></i>
+          <span>{{ prescription.created_at[:10] }}</span>
+        </div>
+      </div>
+      
+      <!-- Diagnosis -->
+      {% if prescription.diagnosis %}
+      <div class="prescription-section">
+        <h4><i class="fas fa-diagnoses"></i> Diagnosis</h4>
+        <p>{{ prescription.diagnosis }}</p>
+      </div>
+      {% endif %}
+      
+      <!-- Medicines -->
+      {% if prescription.medicines_json %}
+      <div class="prescription-section">
+        <h4><i class="fas fa-pills"></i> Prescribed Medicines</h4>
+        <div class="medicines-list">
+          {% set medicines = prescription.medicines_json|from_json %}
+          {% if medicines is iterable and medicines is not string %}
+            {% for medicine in medicines %}
+            <div class="medicine-item">
+              <div class="medicine-name">{{ medicine.name if medicine.name else medicine }}</div>
+              {% if medicine.dosage %}
+              <div class="medicine-dosage">{{ medicine.dosage }}</div>
+              {% endif %}
+              {% if medicine.duration %}
+              <div class="medicine-duration">Duration: {{ medicine.duration }}</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          {% else %}
+            <p>{{ prescription.medicines_json }}</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+      
+      <!-- Notes -->
+      {% if prescription.notes %}
+      <div class="prescription-section">
+        <h4><i class="fas fa-sticky-note"></i> Additional Notes</h4>
+        <p>{{ prescription.notes }}</p>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-section">
+    <i class="fas fa-file-medical"></i>
+    <p>No prescriptions from doctors yet</p>
+  </div>
+  {% endif %}
+  
+  <!-- Section 2: Uploaded Prescriptions -->
+  <div class="section-header section-divider">
+    <h2><i class="fas fa-cloud-upload-alt"></i> Uploaded Prescriptions</h2>
+    <button class="btn-upload" onclick="document.getElementById('prescriptionUpload').click()">
+      <i class="fas fa-plus"></i> Upload Prescription
+    </button>
+  </div>
+  
+  <input type="file" id="prescriptionUpload" accept="image/*" style="display: none;" onchange="uploadPrescription(this)">
+  
+  <div id="uploadingMessage" class="uploading-message" style="display: none;">
+    <i class="fas fa-spinner fa-spin"></i> Processing prescription with AI...
+  </div>
+  
+  {% if uploaded_prescriptions %}
+  <div class="prescriptions-list">
+    {% for upload in uploaded_prescriptions %}
+    {% set data = upload.extracted_data|from_json %}
+    <div class="prescription-card uploaded">
+      <div class="prescription-header">
+        <div class="doctor-info">
+          <div class="doctor-icon uploaded">
+            <i class="fas fa-file-prescription"></i>
+          </div>
+          <div>
+            <h3>{{ data.doctor_name if data.doctor_name else 'External Doctor' }}</h3>
+            <p class="specialization"><i class="fas fa-upload"></i> Uploaded Prescription</p>
+          </div>
+        </div>
+        <div class="prescription-actions">
+          <span class="prescription-date">
+            <i class="fas fa-calendar"></i>
+            {{ data.date if data.date else upload.uploaded_at[:10] }}
+          </span>
+          <form method="POST" action="{{ url_for('patient.delete_uploaded_prescription', upload_id=upload.id) }}" 
+                style="display: inline;" onsubmit="return confirm('Delete this prescription?');">
+            <button type="submit" class="btn-delete-small">
+              <i class="fas fa-trash"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+      
+      <!-- Diagnosis -->
+      {% if data.diagnosis %}
+      <div class="prescription-section">
+        <h4><i class="fas fa-diagnoses"></i> Diagnosis</h4>
+        <p>{{ data.diagnosis }}</p>
+      </div>
+      {% endif %}
+      
+      <!-- Medicines -->
+      {% if data.medicines %}
+      <div class="prescription-section">
+        <h4><i class="fas fa-pills"></i> Prescribed Medicines</h4>
+        <div class="medicines-list">
+          {% for medicine in data.medicines %}
+          <div class="medicine-item">
+            <div class="medicine-name">{{ medicine.name if medicine.name else medicine }}</div>
+            {% if medicine.dosage %}
+            <div class="medicine-dosage">{{ medicine.dosage }}</div>
+            {% endif %}
+            {% if medicine.duration %}
+            <div class="medicine-duration">Duration: {{ medicine.duration }}</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      
+      <!-- Notes -->
+      {% if data.notes %}
+      <div class="prescription-section">
+        <h4><i class="fas fa-sticky-note"></i> Additional Notes</h4>
+        <p>{{ data.notes }}</p>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-section">
+    <i class="fas fa-cloud-upload-alt"></i>
+    <p>No uploaded prescriptions yet. Click "Upload Prescription" to add one!</p>
+  </div>
+  {% endif %}
+  
+  <div class="back-link">
+    <a href="{{ url_for('patient.dashboard') }}">
       <i class="fas fa-arrow-left"></i> Back to Dashboard
     </a>
   </div>
 </div>
+
+<script>
+function uploadPrescription(input) {
+  if (!input.files || !input.files[0]) return;
+  
+  const file = input.files[0];
+  const formData = new FormData();
+  formData.append('prescription_image', file);
+  
+  // Show loading message
+  document.getElementById('uploadingMessage').style.display = 'block';
+  
+  fetch('{{ url_for("patient.upload_prescription_api") }}', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    document.getElementById('uploadingMessage').style.display = 'none';
+    if (data.success) {
+      alert('Prescription uploaded and processed successfully!');
+      window.location.reload();
+    } else {
+      alert('Error: ' + (data.error || 'Failed to process prescription'));
+    }
+  })
+  .catch(error => {
+    document.getElementById('uploadingMessage').style.display = 'none';
+    alert('Error uploading prescription: ' + error);
+  });
+}
+</script>
 {% endblock %}
 
 {% block extra_css %}
 <style>
   .page-container {
-    max-width: 1000px;
+    max-width: 900px;
     margin: 0 auto;
+    padding-bottom: 40px;
   }
   
   .page-header {
@@ -46,6 +240,151 @@
     color: #666;
   }
   
+  /* Prescriptions List */
+  .prescriptions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+  }
+  
+  .prescription-card {
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border-left: 5px solid #667eea;
+    transition: all 0.3s;
+  }
+  
+  .prescription-card:hover {
+    transform: translateX(5px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  }
+  
+  .prescription-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #f0f0f0;
+  }
+  
+  .doctor-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+  
+  .doctor-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .doctor-icon i {
+    font-size: 28px;
+    color: white;
+  }
+  
+  .doctor-info h3 {
+    color: #333;
+    margin: 0 0 5px 0;
+    font-size: 1.2rem;
+  }
+  
+  .specialization {
+    color: #667eea;
+    font-size: 0.9rem;
+    margin: 0;
+  }
+  
+  .specialization i {
+    margin-right: 5px;
+  }
+  
+  .prescription-date {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #666;
+    font-size: 0.95rem;
+    background: #f8f9fa;
+    padding: 8px 15px;
+    border-radius: 8px;
+  }
+  
+  .prescription-date i {
+    color: #667eea;
+  }
+  
+  .prescription-section {
+    margin-bottom: 20px;
+  }
+  
+  .prescription-section:last-child {
+    margin-bottom: 0;
+  }
+  
+  .prescription-section h4 {
+    color: #333;
+    margin-bottom: 12px;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .prescription-section h4 i {
+    color: #667eea;
+  }
+  
+  .prescription-section p {
+    color: #555;
+    line-height: 1.6;
+    margin: 0;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+  }
+  
+  /* Medicines List */
+  .medicines-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .medicine-item {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+    padding: 15px;
+    border-radius: 10px;
+    border-left: 3px solid #667eea;
+  }
+  
+  .medicine-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 1rem;
+    margin-bottom: 5px;
+  }
+  
+  .medicine-dosage {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 3px;
+  }
+  
+  .medicine-duration {
+    color: #888;
+    font-size: 0.85rem;
+  }
+  
+  /* Info Card */
   .info-card {
     background: white;
     padding: 60px 40px;
@@ -70,10 +409,13 @@
     color: #666;
     font-size: 1.1rem;
     margin-bottom: 30px;
+    line-height: 1.6;
   }
   
   .btn {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     padding: 12px 30px;
     border-radius: 8px;
     text-decoration: none;
@@ -89,6 +431,38 @@
   .btn-primary:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+  }
+  
+  .back-link {
+    text-align: center;
+    margin-top: 30px;
+  }
+  
+  .back-link a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.3s;
+  }
+  
+  .back-link a:hover {
+    color: #764ba2;
+  }
+  
+  .back-link i {
+    margin-right: 5px;
+  }
+  
+  @media (max-width: 768px) {
+    .prescription-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 15px;
+    }
+    
+    .prescription-date {
+      align-self: flex-start;
+    }
   }
 </style>
 {% endblock %}

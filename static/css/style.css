@@ -172,6 +172,10 @@ body {
 }
 
 /* Notification Badge */
+.notification-container {
+  position: relative;
+}
+
 .notification-badge {
   position: absolute;
   top: 4px;
@@ -184,6 +188,126 @@ body {
   border-radius: 10px;
   min-width: 18px;
   text-align: center;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* Notification Dropdown */
+.notification-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 350px;
+  max-height: 500px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  display: none;
+  flex-direction: column;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.notification-dropdown.active {
+  display: flex;
+  animation: dropdownSlide 0.3s ease-out;
+}
+
+@keyframes dropdownSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notification-header {
+  padding: 15px 20px;
+  border-bottom: 2px solid #f0f0f0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.notification-header h4 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.notification-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.notification-loading {
+  padding: 40px;
+  text-align: center;
+  color: #999;
+  font-size: 0.95rem;
+}
+
+.notification-item {
+  padding: 15px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  gap: 12px;
+  align-items: start;
+}
+
+.notification-item:hover {
+  background: #f8f9ff;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-item.non-clickable {
+  cursor: default;
+  opacity: 0.8;
+}
+
+.notification-icon {
+  font-size: 1.3rem;
+  color: #667eea;
+  flex-shrink: 0;
+}
+
+.notification-content {
+  flex: 1;
+}
+
+.notification-message {
+  color: #333;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin-bottom: 5px;
+}
+
+.notification-time {
+  color: #999;
+  font-size: 0.75rem;
+}
+
+.notification-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #999;
+}
+
+.notification-empty i {
+  font-size: 3rem;
+  color: #ddd;
+  margin-bottom: 15px;
 }
 
 /* Mobile Navigation */
@@ -699,4 +823,163 @@ footer {
 
 .bubble {
     text-align: left !important;
+}
+
+/* Prescriptions Page - Two Sections */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 40px;
+  margin-bottom: 20px;
+}
+
+.section-header h2 {
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.section-divider {
+  border-top: 2px solid #e0e0e0;
+  padding-top: 40px;
+}
+
+.count-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.btn-upload {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s;
+}
+
+.btn-upload:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.uploading-message {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border: 2px solid #667eea;
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+  margin: 20px 0;
+  font-size: 1.1rem;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.uploading-message i {
+  margin-right: 10px;
+  font-size: 1.3rem;
+}
+
+.empty-section {
+  text-align: center;
+  padding: 60px 20px;
+  color: #999;
+  background: #f9f9f9;
+  border-radius: 10px;
+  margin-top: 20px;
+}
+
+.empty-section i {
+  font-size: 4rem;
+  margin-bottom: 20px;
+  opacity: 0.3;
+}
+
+.empty-section p {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.prescription-card.uploaded {
+  border-left: 4px solid #667eea;
+}
+
+.doctor-icon.uploaded {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.prescription-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.btn-delete-small {
+  background: #ff4757;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-delete-small:hover {
+  background: #e84053;
+  transform: scale(1.1);
+}
+
+.ai-note {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  padding: 10px;
+  border-radius: 6px;
+  border-left: 3px solid #667eea;
+  font-style: italic;
+  color: #555;
+}
+
+/* Password Toggle Eye Icon */
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.password-wrapper input {
+  padding-right: 45px;
+  width: 100%;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 15px;
+  color: #999;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  font-size: 1.1rem;
+}
+
+.password-toggle:hover {
+  color: #667eea;
+}
+
+.password-toggle.fa-eye-slash {
+  color: #667eea;
 }

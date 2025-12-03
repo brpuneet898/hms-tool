@@ -10,7 +10,10 @@ from database import (
     insert_patient_details,
     insert_doctor_details,
     get_patient_details,
-    get_doctor_details
+    get_doctor_details,
+    update_user_basic_info,
+    update_patient_details,
+    update_doctor_details
 )
 
 auth_bp = Blueprint('auth', __name__)
@@ -289,3 +292,62 @@ def profile():
         user_data = get_doctor_details(user_id)
     
     return render_template('profile.html', user=user_data, role=role)
+
+
+@auth_bp.route('/edit-profile', methods=['GET', 'POST'])
+@login_required
+def edit_profile():
+    """
+    Edit user profile
+    """
+    user_id = session.get('user_id')
+    role = session.get('role')
+    
+    if request.method == 'POST':
+        try:
+            # Get basic info
+            full_name = request.form.get('full_name', '').strip()
+            phone = request.form.get('phone', '').strip()
+            gender = request.form.get('gender', '').strip()
+            dob = request.form.get('dob', '').strip()
+            
+            # Update basic user info
+            update_user_basic_info(user_id, full_name, phone, gender, dob)
+            
+            # Update role-specific details
+            if role == 'PATIENT':
+                blood_group = request.form.get('blood_group', '').strip()
+                allergies = request.form.get('allergies', '').strip()
+                chronic_conditions = request.form.get('chronic_conditions', '').strip()
+                emergency_contact = request.form.get('emergency_contact', '').strip()
+                
+                update_patient_details(user_id, blood_group or None, allergies or None, 
+                                     chronic_conditions or None, emergency_contact or None)
+            
+            elif role == 'DOCTOR':
+                specialization = request.form.get('specialization', '').strip()
+                qualification = request.form.get('qualification', '').strip()
+                experience_years = request.form.get('experience_years', 0)
+                consultation_fee = request.form.get('consultation_fee', 0.0)
+                
+                update_doctor_details(user_id, specialization, qualification or None,
+                                    int(experience_years) if experience_years else 0,
+                                    float(consultation_fee) if consultation_fee else 0.0)
+            
+            # Update session name if changed
+            session['full_name'] = full_name
+            
+            flash('Profile updated successfully!', 'success')
+            return redirect(url_for('auth.profile'))
+            
+        except Exception as e:
+            flash(f'Error updating profile: {str(e)}', 'danger')
+            return redirect(url_for('auth.edit_profile'))
+    
+    # GET request - show edit form
+    if role == 'PATIENT':
+        user_data = get_patient_details(user_id)
+    else:
+        user_data = get_doctor_details(user_id)
+    
+    return render_template('edit_profile.html', user=user_data, role=role)
