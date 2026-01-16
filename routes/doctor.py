@@ -44,10 +44,31 @@ def appointments():
     """
     View doctor's appointments
     """
+    from datetime import datetime
     user_id = session.get('user_id')
     appointments_list = get_doctor_appointments(user_id)
+    current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M')
     
-    return render_template('doctor_appointments.html', appointments=appointments_list)
+    # Check which appointments have summaries
+    appointment_ids = [apt['id'] for apt in appointments_list]
+    summaries_dict = {}
+    if appointment_ids:
+        placeholders = ','.join('?' * len(appointment_ids))
+        summary_query = f"""
+            SELECT appointment_id
+            FROM appointment_summaries
+            WHERE appointment_id IN ({placeholders})
+        """
+        summaries = execute_query(summary_query, tuple(appointment_ids), fetchall=True)
+        summaries_dict = {s['appointment_id']: True for s in summaries}
+    
+    # Add has_summary flag to each appointment
+    for apt in appointments_list:
+        apt['has_summary'] = apt['id'] in summaries_dict
+    
+    return render_template('doctor_appointments.html', 
+                         appointments=appointments_list,
+                         current_datetime=current_datetime)
 
 
 @doctor_bp.route('/appointment/accept/<int:appointment_id>', methods=['POST'])
@@ -108,6 +129,51 @@ def reject_appointment(appointment_id):
         flash('Appointment rejected.', 'info')
     except Exception as e:
         flash(f'Error rejecting appointment: {str(e)}', 'danger')
+    
+    return redirect(url_for('doctor.appointments'))
+
+
+@doctor_bp.route('/appointment/reschedule/<int:appointment_id>', methods=['POST'])
+@role_required('DOCTOR')
+def reschedule_appointment(appointment_id):
+    """
+    Reschedule an appointment to a new date and time
+    """
+    try:
+        new_date = request.form.get('new_date')
+        new_time = request.form.get('new_time')
+        
+        if not new_date or not new_time:
+            flash('Please provide both date and time for rescheduling', 'warning')
+            return redirect(url_for('doctor.appointments'))
+        
+        # Get current appointment details
+        query = "SELECT patient_id, date, time FROM appointments WHERE id = ?"
+        appointment = execute_query(query, (appointment_id,), fetchone=True)
+        
+        # Update appointment with reschedule info
+        update_query = """
+            UPDATE appointments 
+            SET date = ?, time = ?, status = 'CONFIRMED', 
+                was_rescheduled = 1, original_date = ?, original_time = ?
+            WHERE id = ?
+        """
+        execute_query(update_query, (new_date, new_time, appointment['date'], appointment['time'], appointment_id), commit=True)
+        
+        # Create notification for patient
+        doctor_name = session.get('full_name', 'Doctor')
+        message = f"Dr. {doctor_name} rescheduled and accepted your appointment to {new_date} at {new_time}"
+        create_notification(
+            user_id=appointment['patient_id'],
+            notification_type='APPOINTMENT_ACCEPTED',
+            message=message,
+            link='/patient/appointments',
+            appointment_id=appointment_id
+        )
+        
+        flash(f'Appointment rescheduled successfully to {new_date} at {new_time}', 'success')
+    except Exception as e:
+        flash(f'Error rescheduling appointment: {str(e)}', 'danger')
     
     return redirect(url_for('doctor.appointments'))
 
@@ -346,6 +412,32 @@ def api_search_patients():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e), 'patients': []})
 
+
+@doctor_bp.route('/api/patient-details/<int:patient_id>', methods=['GET'])
+@role_required('DOCTOR')
+def api_patient_details(patient_id):
+    """
+    AJAX endpoint for comprehensive patient details
+    Returns all patient information including vitals, prescriptions from all doctors, etc.
+    """
+    try:
+        # Get comprehensive patient data
+        from database import get_comprehensive_patient_details
+        patient_data = get_comprehensive_patient_details(patient_id)
+        
+        if not patient_data:
+            return jsonify({'success': False, 'message': 'Patient not found'})
+        
+        return jsonify({
+            'success': True,
+            'patient': patient_data
+        })
+    
+    except Exception as e:
+        print(f"Error fetching patient details: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
 @doctor_bp.route('/schedule-follow-up', methods=['POST'])
 @role_required('DOCTOR')
 def schedule_follow_up():
@@ -443,3 +535,233 @@ def download_calendar(appointment_id):
     response.headers['Content-Disposition'] = f'attachment; filename=appointment_{appointment_id}.ics'
     
     return response
+
+
+@doctor_bp.route('/appointment/generate-summary-audio', methods=['POST'])
+@role_required('DOCTOR')
+def generate_summary_audio():
+    """
+    Generate AI summary from audio recording using Gemini's audio capabilities
+    No FFmpeg, Whisper, or Pyannote needed - fully portable!
+    """
+    try:
+        import google.generativeai as genai
+        from config import Config
+        import tempfile
+        import os
+        import base64
+        
+        # Get uploaded audio file
+        if 'audio' not in request.files:
+            return jsonify({'success': False, 'error': 'No audio file uploaded'}), 400
+        
+        audio_file = request.files['audio']
+        appointment_id = request.form.get('appointment_id')
+        
+        if not appointment_id:
+            return jsonify({'success': False, 'error': 'Missing appointment_id'}), 400
+        
+        # Read audio data
+        audio_data = audio_file.read()
+        audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+        
+        print(f"🎙️ Processing audio with Gemini... ({len(audio_data)} bytes)")
+        
+        # Configure Gemini
+        genai.configure(api_key=Config.GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        
+        # Create audio part for Gemini
+        audio_part = {
+            "inline_data": {
+                "mime_type": "audio/webm",
+                "data": audio_base64
+            }
+        }
+        
+        prompt = """You are a medical documentation assistant. Listen to this doctor-patient consultation recording.
+
+Your tasks:
+1. Transcribe the conversation
+2. Identify who is speaking (doctor vs patient) based on context and voice
+3. Create a detailed narrative summary
+
+Provide your response in the following JSON format:
+{
+    "transcription": "Full transcription with speaker labels like [DOCTOR]: ... [PATIENT]: ...",
+    "discussions": "Narrative of the consultation flow - e.g., 'The patient complained of headaches for 3 days. The doctor asked about fever and severity. The patient confirmed mild fever...'",
+    "symptoms": "All symptoms mentioned by the patient during the consultation",
+    "diagnosis": "The doctor's diagnosis or medical assessment",
+    "recommendations": "What the doctor prescribed or recommended - medications, lifestyle changes, follow-up instructions",
+    "additional_notes": "Any other important information, warnings, or special instructions given"
+}
+
+Guidelines:
+1. Write 'discussions' as a flowing narrative showing the conversation
+2. Use phrases like "The patient reported...", "The doctor diagnosed...", "The doctor prescribed..."
+3. Identify speakers by context (patient describes symptoms, doctor asks questions/diagnoses)
+4. Only include information actually present in the audio
+5. Be medically accurate and professional
+6. Return ONLY valid JSON, no extra text
+
+JSON Summary:"""
+        
+        # Send audio + prompt to Gemini
+        response = model.generate_content([prompt, audio_part])
+        summary_text = response.text.strip()
+        
+        print(f"📝 Gemini response received")
+        
+        # Clean markdown
+        if summary_text.startswith('```json'):
+            summary_text = summary_text[7:]
+        if summary_text.startswith('```'):
+            summary_text = summary_text[3:]
+        if summary_text.endswith('```'):
+            summary_text = summary_text[:-3]
+        summary_text = summary_text.strip()
+        
+        # Parse JSON
+        summary_json = json.loads(summary_text)
+        
+        # Log transcription for debugging
+        if 'transcription' in summary_json:
+            print(f"\n📝 Transcription:\n{summary_json['transcription']}\n")
+        
+        # Store in database (without transcription field for storage)
+        storage_json = {k: v for k, v in summary_json.items() if k != 'transcription'}
+        
+        insert_query = """
+            INSERT INTO appointment_summaries (appointment_id, summary_json)
+            VALUES (?, ?)
+        """
+        execute_query(insert_query, (appointment_id, json.dumps(storage_json)), commit=True)
+        
+        return jsonify({'success': True, 'summary': storage_json})
+        
+    except Exception as e:
+        print(f"Error generating summary: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@doctor_bp.route('/appointment/generate-summary', methods=['POST'])
+@role_required('DOCTOR')
+def generate_summary():
+    """
+    Generate AI summary from voice transcription using Gemini (Web Speech API text input)
+    Gemini analyzes the raw text to identify speakers based on context
+    """
+    try:
+        import google.generativeai as genai
+        from config import Config
+        
+        data = request.get_json()
+        appointment_id = data.get('appointment_id')
+        transcription = data.get('transcription')
+        
+        if not appointment_id or not transcription:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        # Print FULL raw transcription for debugging
+        print("\n" + "="*60)
+        print("📝 RAW TRANSCRIPTION FROM WEB SPEECH API:")
+        print("="*60)
+        print(transcription)
+        print("="*60)
+        print(f"Total length: {len(transcription)} characters")
+        print("="*60 + "\n")
+        
+        # Configure Gemini
+        genai.configure(api_key=Config.GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        
+        prompt = f"""You are a medical documentation assistant. Analyze this doctor-patient consultation transcription.
+
+Raw Transcription (from speech-to-text):
+{transcription}
+
+Your task is to identify who said what based on context clues:
+- The PATIENT typically: complains about symptoms, describes pain/discomfort, answers questions about their condition
+- The DOCTOR typically: asks diagnostic questions, provides medical advice, makes diagnoses, prescribes treatments
+
+Then create a detailed narrative summary that captures the flow of the consultation.
+
+Provide your response in the following JSON format:
+{{
+    "discussions": "Narrative of the consultation flow - e.g., 'The patient complained of headaches for 3 days. The doctor asked about fever and severity. The patient confirmed mild fever...'",
+    "symptoms": "All symptoms mentioned by the patient during the consultation",
+    "diagnosis": "The doctor's diagnosis or medical assessment",
+    "recommendations": "What the doctor prescribed or recommended - medications, lifestyle changes, follow-up instructions",
+    "additional_notes": "Any other important information, warnings, or special instructions given"
+}}
+
+Guidelines:
+1. Infer who is speaking (doctor vs patient) from context - don't worry if you're not 100% certain
+2. Write 'discussions' as a flowing narrative showing the conversation
+3. Use phrases like "The patient reported...", "The doctor diagnosed...", "The doctor prescribed..."
+4. Only include information actually present in the transcript
+5. Be medically accurate and professional
+6. Return ONLY valid JSON, no extra text
+
+JSON Summary:"""
+        
+        response = model.generate_content(prompt)
+        summary_text = response.text.strip()
+        
+        # Clean markdown formatting
+        if summary_text.startswith('```json'):
+            summary_text = summary_text[7:]
+        if summary_text.startswith('```'):
+            summary_text = summary_text[3:]
+        if summary_text.endswith('```'):
+            summary_text = summary_text[:-3]
+        summary_text = summary_text.strip()
+        
+        # Parse JSON response
+        summary_json = json.loads(summary_text)
+        
+        # Store in database
+        insert_query = """
+            INSERT INTO appointment_summaries (appointment_id, summary_json)
+            VALUES (?, ?)
+        """
+        execute_query(insert_query, (appointment_id, json.dumps(summary_json)), commit=True)
+        
+        return jsonify({'success': True, 'message': 'Summary generated successfully'})
+        
+    except Exception as e:
+        print(f"Error generating summary: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@doctor_bp.route('/appointment/get-summary/<int:appointment_id>')
+@role_required('DOCTOR')
+def get_summary(appointment_id):
+    """
+    Retrieve summary for an appointment
+    """
+    try:
+        query = """
+            SELECT summary_json, created_at
+            FROM appointment_summaries
+            WHERE appointment_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+        """
+        result = execute_query(query, (appointment_id,), fetchone=True)
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'summary': json.loads(result['summary_json']),
+                'created_at': result['created_at']
+            })
+        else:
+            return jsonify({'success': False, 'error': 'No summary found'}), 404
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

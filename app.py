@@ -28,6 +28,10 @@ from scheduler import init_scheduler
 app = Flask(__name__)
 app.config.from_object(Config)
 
+# Force template reloading for development
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.jinja_env.auto_reload = True
+
 # Initialize database on app startup
 init_db()
 

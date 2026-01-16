@@ -6,6 +6,7 @@ import os
 from datetime import date, datetime, timedelta, timezone
 import secrets
 import string
+import json
 from models import ALL_MODELS
 
 # IST timezone (UTC+5:30)
@@ -1843,6 +1844,131 @@ def get_all_appointments_summary(patient_id):
         })
     
     return {"appointments": appointments, "total_count": len(appointments)}
+
+
+def get_comprehensive_patient_details(patient_id):
+    """
+    Get comprehensive patient details for doctor's modal view
+    Includes: basic info, vitals history, ALL prescriptions (from ALL doctors), appointment stats
+    """
+    try:
+        # Get basic patient info
+        patient_query = """
+            SELECT u.id, u.full_name, u.email, u.phone, u.dob, u.gender,
+                   p.blood_group, p.allergies, p.chronic_conditions, p.emergency_contact
+            FROM users u
+            LEFT JOIN patient_details p ON u.id = p.user_id
+            WHERE u.id = ? AND u.role = 'PATIENT'
+        """
+        
+        patient = execute_query(patient_query, (patient_id,), fetchone=True)
+        
+        if not patient:
+            return None
+        
+        # Get vitals history (last 30 days from most recent vital)
+        # Query normalized vital_signs table and pivot data by date
+        vitals_query = """
+            SELECT 
+                DATE(recorded_at) as date,
+                MAX(CASE WHEN vital_type = 'blood_pressure' THEN value END) as blood_pressure,
+                MAX(CASE WHEN vital_type = 'temperature' THEN value END) as temperature,
+                MAX(CASE WHEN vital_type = 'weight' THEN value END) as weight,
+                MAX(CASE WHEN vital_type = 'blood_sugar' THEN value END) as blood_sugar
+            FROM vital_signs
+            WHERE patient_id = ?
+            AND DATE(recorded_at) >= (
+                SELECT DATE(MAX(recorded_at), '-30 days') 
+                FROM vital_signs 
+                WHERE patient_id = ?
+            )
+            GROUP BY DATE(recorded_at)
+            ORDER BY date DESC
+        """
+        
+        vitals = execute_query(vitals_query, (patient_id, patient_id), fetchall=True)
+        
+        # Get ALL prescriptions from ALL doctors
+        prescriptions_query = """
+            SELECT p.id, p.diagnosis, p.medicines_json, p.notes, p.created_at,
+                   u.full_name as doctor_name,
+                   dd.specialization
+            FROM prescriptions p
+            JOIN users u ON p.doctor_id = u.id
+            LEFT JOIN doctor_details dd ON u.id = dd.user_id
+            WHERE p.patient_id = ?
+            ORDER BY p.created_at DESC
+        """
+        
+        prescriptions = execute_query(prescriptions_query, (patient_id,), fetchall=True)
+        
+        # Get appointment statistics
+        stats_query = """
+            SELECT 
+                COUNT(*) as total_appointments,
+                SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completed_appointments,
+                MAX(CASE WHEN status = 'COMPLETED' THEN date ELSE NULL END) as last_visit
+            FROM appointments
+            WHERE patient_id = ?
+        """
+        
+        stats = execute_query(stats_query, (patient_id,), fetchone=True)
+    
+        # Format the data
+        result = {
+            'id': patient['id'],
+            'full_name': patient['full_name'],
+            'email': patient['email'],
+            'phone': patient['phone'],
+            'dob': patient['dob'],
+            'gender': patient['gender'],
+            'blood_group': patient['blood_group'],
+            'allergies': patient['allergies'],
+            'chronic_conditions': patient['chronic_conditions'],
+            'emergency_contact': patient['emergency_contact'],
+            'total_appointments': stats['total_appointments'] if stats else 0,
+            'completed_appointments': stats['completed_appointments'] if stats else 0,
+            'last_visit': stats['last_visit'] if stats else None,
+            'vitals': [],
+            'prescriptions': []
+        }
+        
+        # Format vitals
+        if vitals:
+            for vital in vitals:
+                result['vitals'].append({
+                    'date': vital['date'],
+                    'blood_pressure': vital['blood_pressure'],
+                    'temperature': vital['temperature'],
+                    'weight': vital['weight'],
+                    'blood_sugar': vital['blood_sugar']
+                })
+        
+        # Format prescriptions with parsed medicines
+        if prescriptions:
+            for prescription in prescriptions:
+                try:
+                    medicines = json.loads(prescription['medicines_json']) if prescription['medicines_json'] else []
+                except:
+                    medicines = []
+                
+                result['prescriptions'].append({
+                    'id': prescription['id'],
+                    'date': prescription['created_at'][:10],
+                    'diagnosis': prescription['diagnosis'],
+                    'notes': prescription['notes'],
+                    'doctor_name': prescription['doctor_name'],
+                    'specialization': prescription['specialization'],
+                    'medicines': medicines
+                })
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error in get_comprehensive_patient_details: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 # Run initialization if executed directly

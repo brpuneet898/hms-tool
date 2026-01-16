@@ -12,7 +12,9 @@
   {% if appointments %}
   <div class="appointments-list">
     {% for appointment in appointments %}
-    <div class="appointment-card status-{{ appointment.status|lower }}">
+    {% set appointment_datetime = appointment.date + ' ' + appointment.time %}
+    {% set is_expired = appointment.status == 'CONFIRMED' and appointment_datetime < current_datetime %}
+    <div class="appointment-card status-{{ appointment.status|lower }} {% if is_expired %}status-expired{% endif %}">
       <div class="appointment-header">
         <div class="patient-info">
           <div class="patient-avatar">
@@ -28,10 +30,24 @@
             </p>
           </div>
         </div>
-        <div class="status-badge status-{{ appointment.status|lower }}">
-          {{ appointment.status }}
+        <div class="badges-container">
+          <div class="status-badge status-{{ 'expired' if is_expired else appointment.status|lower }}">
+            {{ 'EXPIRED' if is_expired else appointment.status }}
+          </div>
+          {% if appointment.was_rescheduled %}
+          <div class="rescheduled-badge">
+            <i class="fas fa-calendar-alt"></i> Rescheduled
+          </div>
+          {% endif %}
         </div>
       </div>
+      
+      {% if appointment.was_rescheduled %}
+      <div class="original-appointment-info">
+        <i class="fas fa-info-circle"></i>
+        <span>Originally requested: {{ appointment.original_date }} at {{ appointment.original_time }}</span>
+      </div>
+      {% endif %}
       
       <div class="appointment-details">
         <div class="detail-item">
@@ -81,6 +97,9 @@
             <i class="fas fa-check"></i> Accept
           </button>
         </form>
+        <button type="button" class="btn-reschedule" onclick="openRescheduleModal({{ appointment.id }}, '{{ appointment.patient_name }}', '{{ appointment.date }}', '{{ appointment.time }}')">
+          <i class="fas fa-calendar-alt"></i> Reschedule
+        </button>
         <form method="POST" action="{{ url_for('doctor.reject_appointment', appointment_id=appointment.id) }}" 
               onsubmit="return confirm('Reject this appointment?');" style="display: inline;">
           <button type="submit" class="btn-reject">
@@ -102,10 +121,23 @@
         <button type="button" class="btn-follow-up" onclick="showFollowUpModal({{ appointment.id }}, '{{ appointment.patient_name }}')">
           <i class="fas fa-calendar-plus"></i> Schedule Follow-up
         </button>
+        {% if appointment.has_summary %}
+        <button type="button" class="btn-view-summary" onclick="viewSummary({{ appointment.id }})">
+          <i class="fas fa-file-medical-alt"></i> View Summary
+        </button>
+        {% endif %}
+        <button type="button" class="btn-voice-record" onclick="toggleRecording({{ appointment.id }})" id="recordBtn-{{ appointment.id }}">
+          <i class="fas fa-microphone"></i> <span id="recordText-{{ appointment.id }}">Record Discussion</span>
+        </button>
         {% elif appointment.status == 'COMPLETED' %}
         <span class="completed-label">
           <i class="fas fa-check-double"></i> Appointment completed
         </span>
+        {% if appointment.has_summary %}
+        <button type="button" class="btn-view-summary" onclick="viewSummary({{ appointment.id }})">
+          <i class="fas fa-file-medical-alt"></i> View Summary
+        </button>
+        {% endif %}
         {% if not appointment.follow_up_required %}
         <button type="button" class="btn-follow-up-small" onclick="showFollowUpModal({{ appointment.id }}, '{{ appointment.patient_name }}')">
           <i class="fas fa-calendar-plus"></i> Add Follow-up
@@ -179,6 +211,69 @@
   </div>
 </div>
 
+<!-- Reschedule Appointment Modal -->
+<div id="rescheduleModal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <span class="modal-close" onclick="closeRescheduleModal()">&times;</span>
+    <h2><i class="fas fa-calendar-alt"></i> Reschedule Appointment</h2>
+    <form id="rescheduleForm" method="POST" action="">
+      <input type="hidden" name="appointment_id" id="rescheduleAppointmentId">
+      
+      <div class="form-group">
+        <label>Patient Name</label>
+        <input type="text" id="reschedulePatientName" readonly>
+      </div>
+      
+      <div class="appointment-current-info">
+        <p><strong>Current Appointment:</strong></p>
+        <p><i class="fas fa-calendar"></i> <span id="rescheduleCurrentDate"></span> at <span id="rescheduleCurrentTime"></span></p>
+      </div>
+      
+      <div class="form-group">
+        <label for="new_date">
+          <i class="fas fa-calendar"></i> New Date
+        </label>
+        <input type="date" name="new_date" id="new_date" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="new_time">
+          <i class="fas fa-clock"></i> New Time
+        </label>
+        <input type="time" name="new_time" id="new_time" required>
+      </div>
+      
+      <div class="modal-actions">
+        <button type="button" onclick="closeRescheduleModal()" class="btn-secondary">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+        <button type="submit" class="btn-primary">
+          <i class="fas fa-check"></i> Confirm Reschedule
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Summary Modal -->
+<div id="summaryModal" class="modal" style="display: none;">
+  <div class="modal-content" style="max-width: 700px;">
+    <span class="modal-close" onclick="closeSummaryModal()">&times;</span>
+    <h2><i class="fas fa-file-medical-alt"></i> Appointment Summary</h2>
+    <div id="summaryContent" style="max-height: 500px; overflow-y: auto; margin-top: 20px;">
+      <div style="text-align: center; padding: 40px;">
+        <i class="fas fa-spinner fa-spin" style="font-size: 2em; color: #667eea;"></i>
+        <p>Loading summary...</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" onclick="closeSummaryModal()" class="btn-secondary">
+        <i class="fas fa-times"></i> Close
+      </button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_css %}
@@ -220,6 +315,7 @@
     box-shadow: 0 2px 10px rgba(0,0,0,0.08);
     border-left: 4px solid #ddd;
     transition: all 0.3s;
+    position: relative;
   }
   
   .appointment-card:hover {
@@ -318,6 +414,55 @@
     color: #721c24;
   }
   
+  .status-badge.status-expired {
+    background: #fff3cd;
+    color: #856404;
+  }
+  
+  .appointment-card.status-expired::before {
+    background: #ffc107;
+  }
+  
+  .badges-container {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  
+  .rescheduled-badge {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .rescheduled-badge i {
+    font-size: 0.75rem;
+  }
+  
+  .original-appointment-info {
+    background: linear-gradient(135deg, #fff5e6 0%, #ffe6f0 100%);
+    padding: 10px 15px;
+    border-radius: 8px;
+    border-left: 4px solid #f5576c;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: #555;
+  }
+  
+  .original-appointment-info i {
+    color: #f5576c;
+  }
+  
   .appointment-details {
     display: flex;
     gap: 30px;
@@ -398,6 +543,123 @@
     background: #c82333;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+  }
+  
+  .btn-reschedule {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+  }
+  
+  .btn-reschedule:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+  }
+  
+  .btn-voice-record {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+    border: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 1.1rem;
+    margin-left: auto;
+    box-shadow: 0 3px 10px rgba(17, 153, 142, 0.3);
+  }
+  
+  .btn-voice-record span {
+    display: none;
+  }
+  
+  .btn-voice-record:hover {
+    transform: scale(1.15);
+    box-shadow: 0 5px 15px rgba(56, 239, 125, 0.6);
+  }
+  
+  .btn-voice-record.recording {
+    background: linear-gradient(135deg, #ee0979 0%, #ff6a00 100%);
+    animation: pulse 1.5s infinite;
+    box-shadow: 0 5px 15px rgba(238, 9, 121, 0.5);
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+  
+  .btn-view-summary {
+    background: linear-gradient(135deg, #ffa751 0%, #ffe259 100%);
+    color: #333;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  
+  .btn-view-summary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 167, 81, 0.5);
+  }
+  
+  .summary-section {
+    background: #f9f9f9;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+  }
+  
+  .summary-section h3 {
+    color: #667eea;
+    margin: 0 0 10px 0;
+    font-size: 1.1em;
+  }
+  
+  .summary-section p {
+    margin: 0;
+    line-height: 1.6;
+    color: #555;
+  }
+  
+  .summary-section.discussions {
+    border-left-color: #667eea;
+  }
+  
+  .summary-section.symptoms {
+    border-left-color: #f5576c;
+  }
+  
+  .summary-section.diagnosis {
+    border-left-color: #38ef7d;
+  }
+  
+  .summary-section.recommendations {
+    border-left-color: #ffa751;
+  }
+  
+  .summary-section.additional {
+    border-left-color: #9b59b6;
   }
   
   .btn-complete {
@@ -690,6 +952,28 @@
     cursor: not-allowed;
   }
   
+  .appointment-current-info {
+    background: linear-gradient(135deg, #fff5e6 0%, #ffe6f0 100%);
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #f5576c;
+    margin-bottom: 20px;
+  }
+  
+  .appointment-current-info p {
+    margin: 5px 0;
+    color: #333;
+  }
+  
+  .appointment-current-info strong {
+    color: #667eea;
+  }
+  
+  .appointment-current-info i {
+    color: #f5576c;
+    margin-right: 5px;
+  }
+  
   .modal-actions {
     display: flex;
     gap: 10px;
@@ -802,10 +1086,302 @@ function closeFollowUpModal() {
 
 // Close modal when clicking outside
 window.onclick = function(event) {
-  const modal = document.getElementById('followUpModal');
-  if (event.target == modal) {
+  const followUpModal = document.getElementById('followUpModal');
+  const rescheduleModal = document.getElementById('rescheduleModal');
+  if (event.target == followUpModal) {
     closeFollowUpModal();
   }
+  if (event.target == rescheduleModal) {
+    closeRescheduleModal();
+  }
+}
+
+function openRescheduleModal(appointmentId, patientName, currentDate, currentTime) {
+  document.getElementById('rescheduleAppointmentId').value = appointmentId;
+  document.getElementById('reschedulePatientName').value = patientName;
+  document.getElementById('rescheduleCurrentDate').textContent = currentDate;
+  document.getElementById('rescheduleCurrentTime').textContent = currentTime;
+  
+  // Set form action dynamically
+  const form = document.getElementById('rescheduleForm');
+  form.action = `/doctor/appointment/reschedule/${appointmentId}`;
+  
+  // Set minimum date to tomorrow
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const minDate = tomorrow.toISOString().split('T')[0];
+  document.getElementById('new_date').setAttribute('min', minDate);
+  
+  document.getElementById('rescheduleModal').style.display = 'flex';
+}
+
+function closeRescheduleModal() {
+  document.getElementById('rescheduleModal').style.display = 'none';
+  document.getElementById('rescheduleForm').reset();
+}
+
+// Voice Recording with MediaRecorder API (sends audio to Gemini 2.5 Flash)
+let mediaRecorder = null;
+let audioChunks = [];
+let currentAppointmentId = null;
+let isRecording = false;
+let recordingStartTime = null;
+
+function toggleRecording(appointmentId) {
+  if (!isRecording) {
+    startRecording(appointmentId);
+  } else {
+    stopRecording();
+  }
+}
+
+async function startRecording(appointmentId) {
+  try {
+    currentAppointmentId = appointmentId;
+    audioChunks = [];
+    isRecording = true;
+    recordingStartTime = Date.now();
+    
+    const btn = document.getElementById(`recordBtn-${appointmentId}`);
+    const textEl = document.getElementById(`recordText-${appointmentId}`);
+    
+    btn.classList.add('recording');
+    textEl.textContent = '🎤 Starting...';
+    
+    // Request microphone access
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        sampleRate: 16000
+      }
+    });
+    
+    // Create MediaRecorder with WebM/Opus (efficient format)
+    const options = { mimeType: 'audio/webm;codecs=opus' };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+      // Fallback for Safari
+      mediaRecorder = new MediaRecorder(stream);
+    } else {
+      mediaRecorder = new MediaRecorder(stream, options);
+    }
+    
+    // Collect audio chunks
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
+      }
+    };
+    
+    // Start recording with timeslice for regular data collection
+    mediaRecorder.start(1000); // Get data every second
+    
+    // Update timer display
+    updateRecordingTimer(appointmentId);
+    
+    console.log('✅ Recording started');
+    
+  } catch (error) {
+    console.error('Error starting recording:', error);
+    alert('❌ Could not access microphone: ' + error.message);
+    isRecording = false;
+  }
+}
+
+function updateRecordingTimer(appointmentId) {
+  if (!isRecording) return;
+  
+  const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  const timeStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+  
+  const textEl = document.getElementById(`recordText-${appointmentId}`);
+  textEl.textContent = `🎤 ${timeStr} (Click to stop)`;
+  
+  // Update every second
+  setTimeout(() => updateRecordingTimer(appointmentId), 1000);
+}
+
+function stopRecording() {
+  if (!mediaRecorder || !isRecording) {
+    return;
+  }
+  
+  isRecording = false;
+  const btn = document.getElementById(`recordBtn-${currentAppointmentId}`);
+  const textEl = document.getElementById(`recordText-${currentAppointmentId}`);
+  
+  btn.classList.remove('recording');
+  btn.disabled = true;
+  textEl.textContent = '⏳ Processing...';
+  
+  // Stop MediaRecorder
+  mediaRecorder.onstop = async () => {
+    try {
+      // Create audio blob from chunks
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      const sizeMB = (audioBlob.size / (1024 * 1024)).toFixed(2);
+      console.log(`✅ Audio recorded: ${sizeMB} MB`);
+      
+      // Validate audio size (minimum 5KB, maximum 20MB)
+      if (audioBlob.size < 5000) {
+        alert('⚠️ Recording too short. Please record at least a few seconds.');
+        textEl.textContent = '🎙️ Record';
+        btn.disabled = false;
+        return;
+      }
+      
+      if (audioBlob.size > 20 * 1024 * 1024) {
+        alert('⚠️ Recording too long (max 20MB). Please record shorter segments.');
+        textEl.textContent = '🎙️ Record';
+        btn.disabled = false;
+        return;
+      }
+      
+      // Show uploading message
+      textEl.textContent = `⏳ Uploading ${sizeMB} MB...`;
+      
+      // Create FormData to send audio file
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+      formData.append('appointment_id', currentAppointmentId);
+      
+      // Send to backend for Gemini processing
+      textEl.textContent = '🤖 AI Processing...';
+      
+      const response = await fetch('/doctor/appointment/generate-summary-audio', {
+        method: 'POST',
+        body: formData
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        textEl.textContent = '✅ Done!';
+        console.log('✅ Summary created');
+        alert('✅ Discussion summary generated successfully!');
+        
+        // Reload page to show summary button
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      } else {
+        throw new Error(result.error || 'Failed to generate summary');
+      }
+      
+    } catch (error) {
+      console.error('Error processing audio:', error);
+      alert('❌ Error: ' + error.message);
+      textEl.textContent = '🎙️ Record';
+      btn.disabled = false;
+    }
+    
+    // Stop media stream
+    if (mediaRecorder.stream) {
+      mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    }
+    audioChunks = [];
+  };
+  
+  mediaRecorder.stop();
+}
+
+function viewSummary(appointmentId) {
+  document.getElementById('summaryModal').style.display = 'flex';
+  document.getElementById('summaryContent').innerHTML = `
+    <div style="text-align: center; padding: 40px;">
+      <i class="fas fa-spinner fa-spin" style="font-size: 2em; color: #667eea;"></i>
+      <p>Loading summary...</p>
+    </div>
+  `;
+  
+  fetch(`/doctor/appointment/get-summary/${appointmentId}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        displaySummary(data.summary);
+      } else {
+        document.getElementById('summaryContent').innerHTML = `
+          <div style="text-align: center; padding: 40px; color: #e74c3c;">
+            <i class="fas fa-exclamation-circle" style="font-size: 2em;"></i>
+            <p>No summary available</p>
+          </div>
+        `;
+      }
+    })
+    .catch(error => {
+      document.getElementById('summaryContent').innerHTML = `
+        <div style="text-align: center; padding: 40px; color: #e74c3c;">
+          <i class="fas fa-times-circle" style="font-size: 2em;"></i>
+          <p>Error loading summary: ${error.message}</p>
+        </div>
+      `;
+    });
+}
+
+function displaySummary(summary) {
+  let html = '';
+  
+  if (summary.discussions) {
+    html += `
+      <div class="summary-section discussions">
+        <h3><i class="fas fa-comments"></i> Discussions</h3>
+        <p>${summary.discussions}</p>
+      </div>
+    `;
+  }
+  
+  if (summary.symptoms) {
+    html += `
+      <div class="summary-section symptoms">
+        <h3><i class="fas fa-notes-medical"></i> Symptoms</h3>
+        <p>${summary.symptoms}</p>
+      </div>
+    `;
+  }
+  
+  if (summary.diagnosis) {
+    html += `
+      <div class="summary-section diagnosis">
+        <h3><i class="fas fa-stethoscope"></i> Diagnosis</h3>
+        <p>${summary.diagnosis}</p>
+      </div>
+    `;
+  }
+  
+  if (summary.recommendations) {
+    html += `
+      <div class="summary-section recommendations">
+        <h3><i class="fas fa-prescription"></i> Recommendations</h3>
+        <p>${summary.recommendations}</p>
+      </div>
+    `;
+  }
+  
+  if (summary.additional_notes) {
+    html += `
+      <div class="summary-section additional">
+        <h3><i class="fas fa-sticky-note"></i> Additional Notes</h3>
+        <p>${summary.additional_notes}</p>
+      </div>
+    `;
+  }
+  
+  if (!html) {
+    html = `
+      <div style="text-align: center; padding: 40px; color: #888;">
+        <i class="fas fa-info-circle" style="font-size: 2em;"></i>
+        <p>No summary content available</p>
+      </div>
+    `;
+  }
+  
+  document.getElementById('summaryContent').innerHTML = html;
+}
+
+function closeSummaryModal() {
+  document.getElementById('summaryModal').style.display = 'none';
 }
 </script>
 {% endblock %}

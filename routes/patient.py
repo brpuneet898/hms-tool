@@ -52,13 +52,36 @@ def appointments():
     """
     View patient's appointments (excluding rejected ones)
     """
+    from datetime import datetime
     user_id = session.get('user_id')
     appointments_list = get_patient_appointments(user_id)
     follow_ups = get_patient_follow_ups(user_id)
+    current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M')
+    
+    # Check which appointments have summaries
+    all_appointments = appointments_list + follow_ups
+    appointment_ids = [apt['id'] for apt in all_appointments]
+    summaries_dict = {}
+    if appointment_ids:
+        placeholders = ','.join('?' * len(appointment_ids))
+        summary_query = f"""
+            SELECT appointment_id
+            FROM appointment_summaries
+            WHERE appointment_id IN ({placeholders})
+        """
+        summaries = execute_query(summary_query, tuple(appointment_ids), fetchall=True)
+        summaries_dict = {s['appointment_id']: True for s in summaries}
+    
+    # Add has_summary flag to each appointment
+    for apt in appointments_list:
+        apt['has_summary'] = apt['id'] in summaries_dict
+    for apt in follow_ups:
+        apt['has_summary'] = apt['id'] in summaries_dict
     
     return render_template('patient_appointments.html', 
                          appointments=appointments_list,
-                         follow_ups=follow_ups)
+                         follow_ups=follow_ups,
+                         current_datetime=current_datetime)
 
 
 @patient_bp.route('/book-appointment', methods=['GET', 'POST'])
@@ -774,3 +797,44 @@ def log_vital():
         flash(f'Error logging vital: {str(e)}', 'danger')
     
     return redirect(url_for('patient.vitals'))
+
+
+@patient_bp.route('/appointment/get-summary/<int:appointment_id>')
+@role_required('PATIENT')
+def get_summary(appointment_id):
+    '''
+    Retrieve summary for an appointment (patient view)
+    '''
+    try:
+        # Verify this appointment belongs to the current patient
+        verify_query = '''
+            SELECT id FROM appointments
+            WHERE id = ? AND patient_id = ?
+        '''
+        user_id = session.get('user_id')
+        appointment = execute_query(verify_query, (appointment_id, user_id), fetchone=True)
+        
+        if not appointment:
+            return jsonify({'success': False, 'error': 'Appointment not found'}), 404
+        
+        # Get summary
+        query = '''
+            SELECT summary_json, created_at
+            FROM appointment_summaries
+            WHERE appointment_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+        '''
+        result = execute_query(query, (appointment_id,), fetchone=True)
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'summary': json.loads(result['summary_json']),
+                'created_at': result['created_at']
+            })
+        else:
+            return jsonify({'success': False, 'error': 'No summary found'}), 404
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

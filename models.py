@@ -120,6 +120,9 @@ class Appointment:
             follow_up_required INTEGER DEFAULT 0,
             follow_up_date TEXT,
             parent_appointment_id INTEGER,
+            was_rescheduled INTEGER DEFAULT 0,
+            original_date TEXT,
+            original_time TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (patient_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -364,6 +367,31 @@ class MedicationReminder:
         ]
 
 
+class AppointmentSummary:
+    """
+    AI-generated summaries of appointment discussions
+    """
+    TABLE_NAME = "appointment_summaries"
+    
+    @staticmethod
+    def create_table_sql():
+        return """
+        CREATE TABLE IF NOT EXISTS appointment_summaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            appointment_id INTEGER NOT NULL,
+            summary_json TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
+        )
+        """
+    
+    @staticmethod
+    def create_indexes_sql():
+        return [
+            "CREATE INDEX IF NOT EXISTS idx_summary_appointment ON appointment_summaries(appointment_id)"
+        ]
+
+
 # List of all model classes for easy iteration
 ALL_MODELS = [
     User,
@@ -376,5 +404,6 @@ ALL_MODELS = [
     DoctorRating,
     LabReport,
     VitalSign,
-    MedicationReminder
+    MedicationReminder,
+    AppointmentSummary
 ]
