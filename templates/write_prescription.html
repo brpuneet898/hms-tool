@@ -121,11 +121,51 @@
     }
 
     .medicine-row {
+      background: #f8f9fa;
+      padding: 20px;
+      padding-right: 70px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .medicine-basic {
       display: grid;
-      grid-template-columns: 2fr 1.5fr 1.5fr auto;
+      grid-template-columns: 2fr 1.5fr 1fr;
       gap: 15px;
       margin-bottom: 15px;
+    }
+
+    .medicine-timing {
+      display: grid;
+      grid-template-columns: 1fr 2fr 1fr;
+      gap: 15px;
       align-items: start;
+    }
+
+    .timing-options {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      padding: 10px;
+      background: white;
+      border-radius: 8px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.9em;
+      color: #555;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      cursor: pointer;
+      width: 18px;
+      height: 18px;
     }
 
     .medicine-row .form-control {
@@ -133,10 +173,13 @@
     }
 
     .btn-remove {
+      position: absolute;
+      top: 20px;
+      right: 20px;
       background: #e74c3c;
       color: white;
       border: none;
-      padding: 12px 15px;
+      padding: 10px 12px;
       border-radius: 8px;
       cursor: pointer;
       font-size: 1em;
@@ -316,24 +359,58 @@
         <div id="medicinesContainer">
           <!-- Initial medicine row -->
           <div class="medicine-row">
-            <input 
-              type="text" 
-              name="medicine_name[]" 
-              class="form-control" 
-              placeholder="Medicine name"
-            >
-            <input 
-              type="text" 
-              name="medicine_dosage[]" 
-              class="form-control" 
-              placeholder="Dosage (e.g., 500mg)"
-            >
-            <input 
-              type="text" 
-              name="medicine_duration[]" 
-              class="form-control" 
-              placeholder="Duration (e.g., 7 days)"
-            >
+            <div class="medicine-basic">
+              <input 
+                type="text" 
+                name="medicine_name[]" 
+                class="form-control" 
+                placeholder="Medicine name"
+              >
+              <input 
+                type="text" 
+                name="medicine_dosage[]" 
+                class="form-control" 
+                placeholder="Dosage (e.g., 500mg)"
+              >
+              <input 
+                type="number" 
+                name="medicine_duration[]" 
+                class="form-control" 
+                placeholder="Days"
+                min="1"
+              >
+            </div>
+            <div class="medicine-timing">
+              <select name="medicine_frequency[]" class="form-control" onchange="updateTimingOptions(this)">
+                <option value="">Select frequency</option>
+                <option value="once">Once a day</option>
+                <option value="twice">Twice a day</option>
+                <option value="thrice">Thrice a day</option>
+                <option value="four">Four times a day</option>
+              </select>
+              <div class="timing-options" style="display: none;">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="medicine_timing_morning[]" value="1"> Morning
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="medicine_timing_afternoon[]" value="1"> Afternoon
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="medicine_timing_evening[]" value="1"> Evening
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="medicine_timing_night[]" value="1"> Night
+                </label>
+              </div>
+              <select name="medicine_food[]" class="form-control">
+                <option value="">Food relation</option>
+                <option value="before_food">Before food</option>
+                <option value="after_food">After food</option>
+                <option value="with_food">With food</option>
+                <option value="empty_stomach">Empty stomach</option>
+                <option value="anytime">Anytime</option>
+              </select>
+            </div>
             <button type="button" class="btn-remove" onclick="removeMedicine(this)">
               <i class="fas fa-trash"></i>
             </button>
@@ -371,29 +448,116 @@
   </div>
 
   <script>
+    function updateTimingOptions(selectElement) {
+      const row = selectElement.closest('.medicine-row');
+      const timingDiv = row.querySelector('.timing-options');
+      const checkboxes = timingDiv.querySelectorAll('input[type="checkbox"]');
+      const frequency = selectElement.value;
+      
+      // Reset all checkboxes and remove old event listeners
+      checkboxes.forEach(cb => {
+        cb.checked = false;
+        cb.disabled = false;
+        // Clone to remove all event listeners
+        const newCb = cb.cloneNode(true);
+        cb.parentNode.replaceChild(newCb, cb);
+      });
+      
+      // Re-query checkboxes after cloning
+      const freshCheckboxes = timingDiv.querySelectorAll('input[type="checkbox"]');
+      
+      if (frequency) {
+        timingDiv.style.display = 'flex';
+        
+        let maxAllowed = 0;
+        if (frequency === 'once') maxAllowed = 1;
+        else if (frequency === 'twice') maxAllowed = 2;
+        else if (frequency === 'thrice') maxAllowed = 3;
+        else if (frequency === 'four') {
+          // Auto-check all 4
+          freshCheckboxes.forEach(cb => cb.checked = true);
+          freshCheckboxes.forEach(cb => cb.disabled = true);
+          return;
+        }
+        
+        // Add limiting logic for once, twice, thrice
+        freshCheckboxes.forEach(cb => {
+          cb.addEventListener('change', function() {
+            const checkedCount = Array.from(freshCheckboxes).filter(c => c.checked).length;
+            
+            if (checkedCount > maxAllowed) {
+              // Find first checked box and uncheck it
+              for (let i = 0; i < freshCheckboxes.length; i++) {
+                if (freshCheckboxes[i].checked && freshCheckboxes[i] !== this) {
+                  freshCheckboxes[i].checked = false;
+                  break;
+                }
+              }
+            }
+          });
+        });
+      } else {
+        timingDiv.style.display = 'none';
+      }
+    }
+
     function addMedicine() {
       const container = document.getElementById('medicinesContainer');
       const newRow = document.createElement('div');
       newRow.className = 'medicine-row';
       newRow.innerHTML = `
-        <input 
-          type="text" 
-          name="medicine_name[]" 
-          class="form-control" 
-          placeholder="Medicine name"
-        >
-        <input 
-          type="text" 
-          name="medicine_dosage[]" 
-          class="form-control" 
-          placeholder="Dosage (e.g., 500mg)"
-        >
-        <input 
-          type="text" 
-          name="medicine_duration[]" 
-          class="form-control" 
-          placeholder="Duration (e.g., 7 days)"
-        >
+        <div class="medicine-basic">
+          <input 
+            type="text" 
+            name="medicine_name[]" 
+            class="form-control" 
+            placeholder="Medicine name"
+          >
+          <input 
+            type="text" 
+            name="medicine_dosage[]" 
+            class="form-control" 
+            placeholder="Dosage (e.g., 500mg)"
+          >
+          <input 
+            type="number" 
+            name="medicine_duration[]" 
+            class="form-control" 
+            placeholder="Days"
+            min="1"
+          >
+        </div>
+        <div class="medicine-timing">
+          <select name="medicine_frequency[]" class="form-control" onchange="updateTimingOptions(this)">
+            <option value="">Select frequency</option>
+            <option value="once">Once a day</option>
+            <option value="twice">Twice a day</option>
+            <option value="thrice">Thrice a day</option>
+            <option value="four">Four times a day</option>
+          </select>
+          <div class="timing-options" style="display: none;">
+            <label class="checkbox-label">
+              <input type="checkbox" name="medicine_timing_morning[]" value="1"> Morning
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="medicine_timing_afternoon[]" value="1"> Afternoon
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="medicine_timing_evening[]" value="1"> Evening
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="medicine_timing_night[]" value="1"> Night
+            </label>
+          </div>
+          <select name="medicine_food[]" class="form-control">
+            <option value="">Food relation</option>
+            <option value="before_food">Before food</option>
+            <option value="after_food">After food</option>
+            <option value="with_food">With food</option>
+            <option value="empty_stomach">Empty stomach</option>
+            <option value="anytime">Anytime</option>
+          </select>
+        </div>
         <button type="button" class="btn-remove" onclick="removeMedicine(this)">
           <i class="fas fa-trash"></i>
         </button>

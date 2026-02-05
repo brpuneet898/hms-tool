@@ -33,6 +33,14 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
+    
+    # Email configuration (Gmail SMTP)
+    MAIL_SERVER = 'smtp.gmail.com'
+    MAIL_PORT = 587
+    MAIL_USE_TLS = True
+    MAIL_USERNAME = keys.get('MAIL_USERNAME')  # Add to keys.yaml
+    MAIL_PASSWORD = keys.get('MAIL_PASSWORD')  # Add to keys.yaml (App Password for Gmail)
+    MAIL_DEFAULT_SENDER = keys.get('MAIL_USERNAME')
 
 
 def allowed_file(filename):

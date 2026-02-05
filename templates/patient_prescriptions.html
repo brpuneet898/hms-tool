@@ -49,31 +49,50 @@
         <h4><i class="fas fa-pills"></i> Prescribed Medicines</h4>
         {% set medicines = prescription.medicines_json|from_json %}
         {% if medicines is iterable and medicines is not string and medicines|length > 0 %}
-        <div class="medicine-table-container">
-          <table class="medicine-table">
-            <thead>
-              <tr>
-                <th><i class="fas fa-capsules"></i> Medicine</th>
-                <th><i class="fas fa-prescription-bottle"></i> Dosage</th>
-                <th><i class="fas fa-clock"></i> Duration</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for medicine in medicines %}
-              <tr>
-                <td class="medicine-name-cell">
-                  <span class="medicine-name-text">{{ medicine.name if medicine.name else medicine }}</span>
-                </td>
-                <td class="medicine-dosage-cell">
-                  {{ medicine.dosage if medicine.dosage else '-' }}
-                </td>
-                <td class="medicine-duration-cell">
-                  {{ medicine.duration if medicine.duration else '-' }}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <div class="medicines-grid">
+          {% for medicine in medicines %}
+          <div class="medicine-card">
+            <div class="medicine-header">
+              <i class="fas fa-capsules"></i>
+              <span class="medicine-name">{{ medicine.name if medicine.name else medicine }}</span>
+            </div>
+            <div class="medicine-details">
+              <div class="detail-row">
+                <span class="detail-label"><i class="fas fa-prescription-bottle"></i> Dosage:</span>
+                <span class="detail-value">{{ medicine.dosage if medicine.dosage else '-' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label"><i class="fas fa-clock"></i> Duration:</span>
+                <span class="detail-value">{{ medicine.duration if medicine.duration else '-' }}</span>
+              </div>
+              {% if medicine.frequency %}
+              <div class="detail-row">
+                <span class="detail-label"><i class="fas fa-redo"></i> Frequency:</span>
+                <span class="detail-value">
+                  {% if medicine.frequency == 'once' %}Once a day
+                  {% elif medicine.frequency == 'twice' %}Twice a day
+                  {% elif medicine.frequency == 'thrice' %}Thrice a day
+                  {% elif medicine.frequency == 'four' %}Four times a day
+                  {% else %}{{ medicine.frequency }}
+                  {% endif %}
+                </span>
+              </div>
+              {% endif %}
+              {% if medicine.timing %}
+              <div class="detail-row">
+                <span class="detail-label"><i class="fas fa-sun"></i> Timing:</span>
+                <span class="detail-value">{{ medicine.timing }}</span>
+              </div>
+              {% endif %}
+              {% if medicine.food %}
+              <div class="detail-row">
+                <span class="detail-label"><i class="fas fa-utensils"></i> Food:</span>
+                <span class="detail-value">{{ medicine.food }}</span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
         </div>
         {% else %}
           <p>{{ prescription.medicines_json }}</p>
@@ -378,105 +397,79 @@ function uploadPrescription(input) {
     border-radius: 8px;
   }
   
-  /* Medicines List */
-  .medicines-list {
+  /* Medicines Grid */
+  .medicines-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+  }
+
+  .medicine-card {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+    border: 2px solid #e0e7ff;
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.3s ease;
+  }
+
+  .medicine-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.15);
+    border-color: #667eea;
+  }
+
+  .medicine-header {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #667eea;
   }
-  
-  /* Medicine Table */
-  .medicine-table-container {
-    overflow-x: auto;
-    overflow-y: auto;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE and Edge */
+
+  .medicine-header i {
+    font-size: 24px;
+    color: #667eea;
   }
-  
-  .medicine-table-container::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
-  }
-  
-  .medicine-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: white;
-    font-size: 0.95rem;
-    table-layout: fixed;
-  }
-  
-  .medicine-table thead {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-  }
-  
-  .medicine-table thead th {
-    padding: 15px;
-    text-align: left;
-    font-weight: 600;
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  
-  .medicine-table thead th:nth-child(1) {
-    width: 40%;
-  }
-  
-  .medicine-table thead th:nth-child(2) {
-    width: 30%;
-  }
-  
-  .medicine-table thead th:nth-child(3) {
-    width: 30%;
-  }
-  
-  .medicine-table thead th i {
-    margin-right: 6px;
-    font-size: 14px;
-  }
-  
-  .medicine-table tbody tr {
-    border-bottom: 1px solid #f0f0f0;
-    transition: all 0.2s;
-  }
-  
-  .medicine-table tbody tr:nth-child(even) {
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.03) 0%, rgba(118, 75, 162, 0.03) 100%);
-  }
-  
-  .medicine-table tbody tr:hover {
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
-    transform: scale(1.01);
-  }
-  
-  .medicine-table tbody td {
-    padding: 15px;
-    color: #555;
-    word-wrap: break-word;
-    word-break: break-word;
-    overflow-wrap: break-word;
-  }
-  
-  .medicine-name-cell {
-    font-weight: 600;
+
+  .medicine-name {
+    font-size: 1.2em;
+    font-weight: 700;
     color: #333;
   }
-  
-  .medicine-name-text {
-    display: inline-flex;
+
+  .medicine-details {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+  }
+
+  .detail-label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.9em;
+    display: flex;
     align-items: center;
     gap: 8px;
   }
-  
-  .medicine-name-text::before {
-    content: "\f46b";
-    font-family: "Font Awesome 6 Free";
-    font-weight: 900;
+
+  .detail-label i {
     color: #667eea;
-    font-size: 16px;
+    width: 16px;
+    text-align: center;
+  }
+
+  .detail-value {
+    font-weight: 500;
+    color: #333;
+    text-align: right;
   }
   
   .medicine-dosage-cell {

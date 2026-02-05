@@ -5,3 +5,5 @@ pyyaml
 google-generativeai
 requests
 Pillow
+APScheduler
+Flask-Mail

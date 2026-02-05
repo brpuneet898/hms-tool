@@ -4,7 +4,15 @@ import google.generativeai as genai
 import uuid
 import json
 from datetime import datetime
-from database import get_ist_now
+from database import (
+    get_ist_now, 
+    get_patient_recent_vitals,
+    get_patient_medical_summary,
+    get_appointment_full_details,
+    get_all_patient_prescriptions_detailed,
+    get_past_appointments_filtered,
+    get_all_appointments_summary
+)
 
 # Import configuration and routes
 from config import Config
@@ -12,12 +20,17 @@ from routes.auth import auth_bp, login_required
 from routes.patient import patient_bp
 from routes.doctor import doctor_bp
 from database import init_db, cleanup_old_notifications
+from scheduler import init_scheduler
 
 # --------------------------------------------------
 # ⚙️ Flask App Configuration
 # --------------------------------------------------
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Force template reloading for development
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.jinja_env.auto_reload = True
 
 # Initialize database on app startup
 init_db()
@@ -28,6 +41,13 @@ try:
     print("🧹 Cleaned up old notifications")
 except:
     pass
+
+# Initialize medication reminder scheduler
+try:
+    scheduler = init_scheduler(app)
+    print("📅 Medication reminder scheduler initialized")
+except Exception as e:
+    print(f"⚠️ Failed to initialize scheduler: {e}")
 
 # Register blueprints
 app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -277,7 +297,7 @@ def medical_chat():
     if not chat_id or chat_id not in chat_sessions:
         chat_id = str(uuid.uuid4())
         session['chat_id'] = chat_id
-        chat_sessions[chat_id] = []   # NO SYSTEM PROMPT HERE (as you want)
+        chat_sessions[chat_id] = []
 
     history = chat_sessions[chat_id]
 
@@ -291,38 +311,186 @@ def medical_chat():
         "parts": [{"text": user_msg}]
     })
 
+    # Get patient context (only for logged-in patients)
+    patient_context = ""
+    user_id = session.get('user_id')
+    user_role = session.get('role')
+    
+    if user_id and user_role == 'PATIENT':
+        # Get vitals with trend analysis
+        vitals_context = "\n\n" + get_patient_recent_vitals(user_id)
+        
+        # Get medical history summary
+        medical_summary = "\n\n" + get_patient_medical_summary(user_id)
+        
+        patient_context = vitals_context + medical_summary
 
-    # Ask Gemini
-    model = genai.GenerativeModel("gemini-2.5-flash",
-                                   system_instruction=(
-                                        "You are MediFriend, a friendly, medically knowledgeable AI health assistant. "
-                                        "Your job is to help users understand symptoms, medical terms, lab reports, prescriptions, "
-                                        "treatments explained by their doctor, and general wellness guidance. "
-                                        
-                                        "You DO NOT diagnose medical conditions. "
-                                        "However, based on common medical knowledge, you MAY explain the *most likely or common possible causes* "
-                                        "of a symptom—but only when phrased carefully and conditionally, such as: "
-                                        "'This could possibly be related to...', 'One common reason might be...', "
-                                        "'Based on what you described, a likely explanation is...', "
-                                        "and always follow such statements with a reminder like: "
-                                        "'Please consult a qualified doctor to confirm, as I am only a medical assistant.' "
-                                        
-                                        "You NEVER prescribe medications, suggest specific drug names, or recommend dosages. "
-                                        "You may explain how prescribed medications generally work or what they are commonly used for. "
-                                        "You educate, guide, explain symptoms, lifestyle advice, and general wellness tips. "
-                                        "Your tone must always be empathetic, supportive, calm, and easy to understand. "
-                                        "Use simple patient-friendly language, avoid jargon unless explained, and keep answers clear and helpful. "
-                                        "Always encourage users to consult a qualified doctor for medical decisions."
+    # Define function declarations for Gemini
+    tools = [
+        {
+            "function_declarations": [
+                {
+                    "name": "get_appointment_details",
+                    "description": "Get complete details of a specific appointment including diagnosis, prescriptions, and all medications with dosage and timing instructions",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "appointment_id": {
+                                "type": "integer",
+                                "description": "The ID of the appointment to retrieve details for"
+                            }
+                        },
+                        "required": ["appointment_id"]
+                    }
+                },
+                {
+                    "name": "get_all_prescriptions",
+                    "description": "Get ALL prescriptions ever received by the patient with complete medication details including names, dosages, timing, and doctor information",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                },
+                {
+                    "name": "get_all_appointments",
+                    "description": "Get ALL appointments (past, upcoming, confirmed, pending, rejected) with their scheduled dates, booking dates, and status. Use this when user asks about 'all appointments', 'total appointments', or 'appointment history'.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                },
+                {
+                    "name": "get_past_appointments",
+                    "description": "Get only COMPLETED past appointments with optional filters. Use this for specific queries about completed visits. Can search by doctor name or date range.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of appointments to return (default 10)"
+                            },
+                            "doctor_name": {
+                                "type": "string",
+                                "description": "Filter by doctor name (partial match allowed)"
+                            },
+                            "date_from": {
+                                "type": "string",
+                                "description": "Filter appointments from this date onwards (format: YYYY-MM-DD)"
+                            }
+                        },
+                        "required": []
+                    }
+                }
+            ]
+        }
+    ]
 
-                                        "Always prioritize safety. For any severe symptoms (chest pain, difficulty breathing, fainting, bleeding, "
-                                        "seizures, suicidal thoughts), immediately advise urgent medical attention. "
-                                        
-                                        "Keep answers concise but helpful."
-                                        "Stay conversational, respectful, and non-alarming. "
-                                        "Your purpose is to guide, educate, and support—not diagnose or treat."   
-                                   )
-                                )
+    # System instruction with patient context
+    system_instruction = (
+        "You are MediFriend, a friendly, medically knowledgeable AI health assistant. "
+        "Your job is to help users understand symptoms, medical terms, lab reports, prescriptions, "
+        "treatments explained by their doctor, and general wellness guidance. "
+        
+        "You DO NOT diagnose medical conditions. "
+        "However, based on common medical knowledge, you MAY explain the *most likely or common possible causes* "
+        "of a symptom—but only when phrased carefully and conditionally, such as: "
+        "'This could possibly be related to...', 'One common reason might be...', "
+        "'Based on what you described, a likely explanation is...', "
+        "and always follow such statements with a reminder like: "
+        "'Please consult a qualified doctor to confirm, as I am only a medical assistant.' "
+        
+        "You NEVER prescribe medications, suggest specific drug names, or recommend dosages. "
+        "You may explain how prescribed medications generally work or what they are commonly used for. "
+        "You educate, guide, explain symptoms, lifestyle advice, and general wellness tips. "
+        "Your tone must always be empathetic, supportive, calm, and easy to understand. "
+        "Use simple patient-friendly language, avoid jargon unless explained, and keep answers clear and helpful. "
+        "Always encourage users to consult a qualified doctor for medical decisions."
+
+        "Always prioritize safety. For any severe symptoms (chest pain, difficulty breathing, fainting, bleeding, "
+        "seizures, suicidal thoughts), immediately advise urgent medical attention. "
+        
+        "Keep answers concise but helpful. "
+        "Stay conversational, respectful, and non-alarming. "
+        "Your purpose is to guide, educate, and support—not diagnose or treat."
+        
+        f"{patient_context}"
+        
+        "\n\nYou have access to the patient's recent vitals and medical history summary above. "
+        "When the patient asks about their health data, medications, appointments, or prescriptions, "
+        "use this information naturally in your responses. "
+        
+        "If the patient asks for detailed information about a specific appointment or all their prescriptions, "
+        "you can use the available functions to fetch complete details. "
+        "Always provide helpful, clear explanations of medical information."
+    )
+
+    # Create model with tools
+    model = genai.GenerativeModel(
+        "gemini-2.5-flash",
+        system_instruction=system_instruction,
+        tools=tools if user_role == 'PATIENT' else None
+    )
+    
+    # Generate response
     response = model.generate_content(history)
+    
+    # Check if Gemini wants to call a function
+    try:
+        has_function_call = (
+            response.candidates and 
+            len(response.candidates) > 0 and
+            response.candidates[0].content.parts and
+            len(response.candidates[0].content.parts) > 0 and
+            hasattr(response.candidates[0].content.parts[0], 'function_call') and
+            response.candidates[0].content.parts[0].function_call
+        )
+    except:
+        has_function_call = False
+    
+    if has_function_call:
+        function_call = response.candidates[0].content.parts[0].function_call
+        function_name = function_call.name
+        function_args = dict(function_call.args)
+        
+        # Execute the requested function
+        function_result = None
+        
+        if function_name == "get_appointment_details":
+            appointment_id = function_args.get("appointment_id")
+            function_result = get_appointment_full_details(user_id, appointment_id)
+        
+        elif function_name == "get_all_prescriptions":
+            function_result = get_all_patient_prescriptions_detailed(user_id)
+        
+        elif function_name == "get_all_appointments":
+            function_result = get_all_appointments_summary(user_id)
+        
+        elif function_name == "get_past_appointments":
+            limit = function_args.get("limit", 10)
+            doctor_name = function_args.get("doctor_name")
+            date_from = function_args.get("date_from")
+            function_result = get_past_appointments_filtered(user_id, limit, doctor_name, date_from)
+        
+        # Add function call and result to history
+        history.append({
+            "role": "model",
+            "parts": [{"function_call": function_call}]
+        })
+        
+        history.append({
+            "role": "user",
+            "parts": [{"function_response": {
+                "name": function_name,
+                "response": function_result
+            }}]
+        })
+        
+        # Generate final response with function result
+        response = model.generate_content(history)
+    
+    # Get the text response
     bot_reply = response.text
 
     # Store bot reply
@@ -330,7 +498,6 @@ def medical_chat():
         "role": "model",
         "parts": [{"text": bot_reply}]
     })
-
 
     return jsonify({
         "reply": bot_reply

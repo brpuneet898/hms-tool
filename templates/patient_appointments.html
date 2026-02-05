@@ -15,7 +15,9 @@
   {% if appointments %}
   <div class="appointments-list">
     {% for appointment in appointments %}
-    <div class="appointment-card status-{{ appointment.status|lower }}">
+    {% set appointment_datetime = appointment.date + ' ' + appointment.time %}
+    {% set is_expired = appointment.status == 'CONFIRMED' and appointment_datetime < current_datetime %}
+    <div class="appointment-card status-{{ appointment.status|lower }} {% if is_expired %}status-expired{% endif %}">
       <div class="appointment-header">
         <div class="doctor-info">
           <div class="doctor-avatar">
@@ -26,8 +28,15 @@
             <p class="specialization"><i class="fas fa-stethoscope"></i> {{ appointment.specialization }}</p>
           </div>
         </div>
-        <div class="status-badge status-{{ appointment.status|lower }}">
-          {{ appointment.status }}
+        <div class="badges-container">
+          <div class="status-badge status-{{ 'expired' if is_expired else appointment.status|lower }}">
+            {{ 'EXPIRED' if is_expired else appointment.status }}
+          </div>
+          {% if appointment.was_rescheduled %}
+          <div class="rescheduled-badge">
+            <i class="fas fa-calendar-alt"></i> Rescheduled
+          </div>
+          {% endif %}
         </div>
       </div>
       
@@ -54,6 +63,13 @@
           {% endif %}
         </div>
       </div>
+      
+      {% if appointment.was_rescheduled %}
+      <div class="original-appointment-info">
+        <i class="fas fa-info-circle"></i>
+        <span>Originally requested: {{ appointment.original_date }} at {{ appointment.original_time }}</span>
+      </div>
+      {% endif %}
       
       {% if appointment.consultation_mode == 'ONLINE' and appointment.meet_link and appointment.status == 'CONFIRMED' %}
       <div class="meet-link-section">
@@ -97,6 +113,11 @@
           <a href="{{ url_for('patient.rate_doctor', appointment_id=appointment.id) }}" class="btn-rate">
             <i class="fas fa-star"></i> Rate Doctor
           </a>
+          {% endif %}
+          {% if appointment.has_summary %}
+          <button type="button" class="btn-view-summary" onclick="viewSummary({{ appointment.id }})">
+            <i class="fas fa-file-medical-alt"></i> View Summary
+          </button>
           {% endif %}
         </div>
       </div>
@@ -183,6 +204,14 @@
           <p>{{ followup.symptoms }}</p>
         </div>
         {% endif %}
+        
+        {% if followup.has_summary %}
+        <div class="followup-actions" style="margin-top: 15px; text-align: center;">
+          <button type="button" class="btn-view-summary" onclick="viewSummary({{ followup.id }})">
+            <i class="fas fa-file-medical-alt"></i> View Summary
+          </button>
+        </div>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
@@ -195,6 +224,26 @@
     </a>
   </div>
 </div>
+
+<!-- Summary Modal -->
+<div id="summaryModal" class="modal" style="display: none;">
+  <div class="modal-content" style="max-width: 700px;">
+    <span class="modal-close" onclick="closeSummaryModal()">&times;</span>
+    <h2><i class="fas fa-file-medical-alt"></i> Appointment Summary</h2>
+    <div id="summaryContent" style="max-height: 500px; overflow-y: auto; margin-top: 20px;">
+      <div style="text-align: center; padding: 40px;">
+        <i class="fas fa-spinner fa-spin" style="font-size: 2em; color: #667eea;"></i>
+        <p>Loading summary...</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" onclick="closeSummaryModal()" class="btn-secondary">
+        <i class="fas fa-times"></i> Close
+      </button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_css %}
@@ -317,6 +366,15 @@
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 15px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .badges-container {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
   }
   
   .doctor-info {
@@ -385,6 +443,48 @@
   .status-badge.status-completed {
     background: #ecf0f1;
     color: #7f8c8d;
+  }
+  
+  .status-badge.status-expired {
+    background: #fff3cd;
+    color: #856404;
+  }
+  
+  .appointment-card.status-expired::before {
+    background: #ffc107;
+  }
+  
+  .rescheduled-badge {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .rescheduled-badge i {
+    font-size: 0.75rem;
+  }
+  
+  .original-appointment-info {
+    background: linear-gradient(135deg, #fff5e6 0%, #ffe6f0 100%);
+    padding: 10px 15px;
+    border-radius: 8px;
+    border-left: 4px solid #f5576c;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: #555;
+  }
+  
+  .original-appointment-info i {
+    color: #f5576c;
   }
   
   .appointment-details {
@@ -802,5 +902,239 @@
   .btn-book-followup:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-  }</style>
+  }
+
+  .btn-view-summary {
+    background: linear-gradient(135deg, #ffa751 0%, #ffe259 100%);
+    color: #333;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  
+  .btn-view-summary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 167, 81, 0.5);
+  }
+  
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    max-width: 700px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    position: relative;
+  }
+  
+  .modal-close {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    color: #999;
+    cursor: pointer;
+    transition: color 0.3s;
+  }
+  
+  .modal-close:hover {
+    color: #333;
+  }
+  
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 25px;
+  }
+  
+  .btn-secondary {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 2px solid #667eea;
+    background: white;
+    color: #667eea;
+  }
+  
+  .btn-secondary:hover {
+    background: #667eea;
+    color: white;
+  }
+  
+  .summary-section {
+    background: #f9f9f9;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+  }
+  
+  .summary-section h3 {
+    color: #667eea;
+    margin: 0 0 10px 0;
+    font-size: 1.1em;
+  }
+  
+  .summary-section p {
+    margin: 0;
+    line-height: 1.6;
+    color: #555;
+  }
+  
+  .summary-section.discussions {
+    border-left-color: #667eea;
+  }
+  
+  .summary-section.symptoms {
+    border-left-color: #f5576c;
+  }
+  
+  .summary-section.diagnosis {
+    border-left-color: #38ef7d;
+  }
+  
+  .summary-section.recommendations {
+    border-left-color: #ffa751;
+  }
+  
+  .summary-section.additional {
+    border-left-color: #9b59b6;
+  }
+</style>
+
+<script>
+function viewSummary(appointmentId) {
+  document.getElementById('summaryModal').style.display = 'flex';
+  document.getElementById('summaryContent').innerHTML = `
+    <div style="text-align: center; padding: 40px;">
+      <i class="fas fa-spinner fa-spin" style="font-size: 2em; color: #667eea;"></i>
+      <p>Loading summary...</p>
+    </div>
+  `;
+  
+  fetch(`/patient/appointment/get-summary/${appointmentId}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        displaySummary(data.summary);
+      } else {
+        document.getElementById('summaryContent').innerHTML = `
+          <div style="text-align: center; padding: 40px; color: #e74c3c;">
+            <i class="fas fa-exclamation-circle" style="font-size: 2em;"></i>
+            <p>No summary available</p>
+          </div>
+        `;
+      }
+    })
+    .catch(error => {
+      document.getElementById('summaryContent').innerHTML = `
+        <div style="text-align: center; padding: 40px; color: #e74c3c;">
+          <i class="fas fa-times-circle" style="font-size: 2em;"></i>
+          <p>Error loading summary: ${error.message}</p>
+        </div>
+      `;
+    });
+}
+
+function displaySummary(summary) {
+  let html = '';
+  
+  if (summary.discussions) {
+    html += `
+      <div class="summary-section discussions">
+        <h3><i class="fas fa-comments"></i> Discussions</h3>
+        <p>${summary.discussions}</p>
+      </div>
+    `;
+  }
+  
+  if (summary.symptoms) {
+    html += `
+      <div class="summary-section symptoms">
+        <h3><i class="fas fa-notes-medical"></i> Symptoms</h3>
+        <p>${summary.symptoms}</p>
+      </div>
+    `;
+  }
+  
+  if (summary.diagnosis) {
+    html += `
+      <div class="summary-section diagnosis">
+        <h3><i class="fas fa-stethoscope"></i> Diagnosis</h3>
+        <p>${summary.diagnosis}</p>
+      </div>
+    `;
+  }
+  
+  if (summary.recommendations) {
+    html += `
+      <div class="summary-section recommendations">
+        <h3><i class="fas fa-prescription"></i> Recommendations</h3>
+        <p>${summary.recommendations}</p>
+      </div>
+    `;
+  }
+  
+  if (summary.additional_notes) {
+    html += `
+      <div class="summary-section additional">
+        <h3><i class="fas fa-sticky-note"></i> Additional Notes</h3>
+        <p>${summary.additional_notes}</p>
+      </div>
+    `;
+  }
+  
+  if (!html) {
+    html = `
+      <div style="text-align: center; padding: 40px; color: #888;">
+        <i class="fas fa-info-circle" style="font-size: 2em;"></i>
+        <p>No summary content available</p>
+      </div>
+    `;
+  }
+  
+  document.getElementById('summaryContent').innerHTML = html;
+}
+
+function closeSummaryModal() {
+  document.getElementById('summaryModal').style.display = 'none';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+  const modal = document.getElementById('summaryModal');
+  if (event.target == modal) {
+    closeSummaryModal();
+  }
+}
+</script>
+
 {% endblock %}

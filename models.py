@@ -120,6 +120,9 @@ class Appointment:
             follow_up_required INTEGER DEFAULT 0,
             follow_up_date TEXT,
             parent_appointment_id INTEGER,
+            was_rescheduled INTEGER DEFAULT 0,
+            original_date TEXT,
+            original_time TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (patient_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -331,6 +334,64 @@ class VitalSign:
         ]
 
 
+class MedicationReminder:
+    """
+    Tracks medication reminders for prescriptions
+    """
+    TABLE_NAME = "medication_reminders"
+    
+    @staticmethod
+    def create_table_sql():
+        return """
+        CREATE TABLE IF NOT EXISTS medication_reminders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prescription_id INTEGER NOT NULL,
+            patient_id INTEGER NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            last_sent_date TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (prescription_id) REFERENCES prescriptions(id) ON DELETE CASCADE,
+            FOREIGN KEY (patient_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    
+    @staticmethod
+    def create_indexes_sql():
+        return [
+            "CREATE INDEX IF NOT EXISTS idx_reminder_patient ON medication_reminders(patient_id)",
+            "CREATE INDEX IF NOT EXISTS idx_reminder_prescription ON medication_reminders(prescription_id)",
+            "CREATE INDEX IF NOT EXISTS idx_reminder_active ON medication_reminders(is_active)",
+            "CREATE INDEX IF NOT EXISTS idx_reminder_dates ON medication_reminders(start_date, end_date)"
+        ]
+
+
+class AppointmentSummary:
+    """
+    AI-generated summaries of appointment discussions
+    """
+    TABLE_NAME = "appointment_summaries"
+    
+    @staticmethod
+    def create_table_sql():
+        return """
+        CREATE TABLE IF NOT EXISTS appointment_summaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            appointment_id INTEGER NOT NULL,
+            summary_json TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
+        )
+        """
+    
+    @staticmethod
+    def create_indexes_sql():
+        return [
+            "CREATE INDEX IF NOT EXISTS idx_summary_appointment ON appointment_summaries(appointment_id)"
+        ]
+
+
 # List of all model classes for easy iteration
 ALL_MODELS = [
     User,
@@ -342,5 +403,7 @@ ALL_MODELS = [
     Notification,
     DoctorRating,
     LabReport,
-    VitalSign
+    VitalSign,
+    MedicationReminder,
+    AppointmentSummary
 ]
